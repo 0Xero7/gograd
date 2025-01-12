@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"slices"
 )
 
 type Value struct {
@@ -15,8 +14,6 @@ type Value struct {
 	Op            string
 	Children      []*Value
 	Label         string
-
-	ParentCount int
 }
 
 func NewValueLiteral(value float64) *Value {
@@ -27,7 +24,6 @@ func NewValueLiteral(value float64) *Value {
 	v.Value = value
 	v.Grad = 0
 	v.Op = "X"
-	v.ParentCount = 0
 	v.Children = make([]*Value, 0)
 	return v
 }
@@ -40,12 +36,13 @@ func NewValue(value float64, op string, children []*Value) *Value {
 	v.Value = value
 	v.Grad = 0
 	v.Op = op
-	v.Children = make([]*Value, 0)
+	v.Children = make([]*Value, 0, len(children))
 
+	seen := make(map[*Value]bool)
 	for _, val := range children {
-		if !slices.Contains(v.Children, val) {
-			val.ParentCount++
+		if !seen[val] {
 			v.Children = append(v.Children, val)
+			seen[val] = true
 		}
 	}
 
@@ -96,10 +93,32 @@ func (v *Value) Div(other *Value) *Value {
 	return v.Mul(other.Pow(-1))
 }
 
+func (v *Value) Log() *Value {
+	epsilon := 1e-7
+	safeValue := math.Max(v.Value, epsilon)
+	t := NewValue(math.Log(safeValue), "log", []*Value{v})
+	t.LocalBackward = func() {
+		v.Grad += (1.0 / safeValue) * t.Grad
+	}
+	return t
+}
+
 func (v *Value) Tanh() *Value {
 	t := NewValue(math.Tanh(v.Value), "tanh", []*Value{v})
 	t.LocalBackward = func() {
 		v.Grad += (1.0 - math.Pow(t.Value, 2.0)) * t.Grad
+	}
+	return t
+}
+
+func (v *Value) ReLu() *Value {
+	t := NewValue(max(0, v.Value), "relu", []*Value{v})
+	t.LocalBackward = func() {
+		grad := 0.0
+		if t.Value > 0 {
+			grad = 1.0
+		}
+		v.Grad += grad * t.Grad
 	}
 	return t
 }
@@ -126,38 +145,6 @@ func (v *Value) PerformBackward() {
 	}
 }
 
-func (v *Value) BackwardBFS() {
-	v.Grad = 1.0
-	orders := make(map[*Value]int, 0)
-	visited := make(map[int]bool)
-	q := make([]*Value, 0)
-	q = append(q, v)
-
-	for len(q) > 0 {
-		t := q[0]
-		q = q[1:]
-		if _, found := visited[t.Id]; found {
-			continue
-		}
-
-		if _, found := orders[t]; !found {
-			orders[t] = t.ParentCount
-		}
-		if orders[t] > 0 {
-			orders[t]--
-		}
-		if orders[t] > 0 {
-			continue
-		}
-
-		visited[t.Id] = true
-		t.PerformBackward()
-		for _, w := range t.Children {
-			q = append(q, w)
-		}
-	}
-}
-
 func dfs(root *Value, visited *map[int]bool, collect *[]*Value) {
 	if _, found := (*visited)[root.Id]; found {
 		return
@@ -179,4 +166,13 @@ func (v *Value) Backward() {
 	for i := len(collect) - 1; i >= 0; i-- {
 		collect[i].PerformBackward()
 	}
+
+	collect = nil
+	visited = nil
+}
+
+func (v *Value) Clear() {
+	v.Children = nil
+	v.LocalBackward = nil
+	v.Grad = 0
 }

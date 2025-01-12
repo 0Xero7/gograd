@@ -9,19 +9,17 @@ type MLP struct {
 	Layers []*Layer
 }
 
-func NewMLP(inputDims int, hiddenDims []int, outputDims int) *MLP {
+func NewMLP(inputDims int, layers []*Layer) *MLP {
 	mlp := new(MLP)
 	mlp.InputDim = inputDims
-	mlp.OutputDim = outputDims
+	mlp.OutputDim = layers[len(layers)-1].OutDim
 	mlp.Dims = make([]int, 0)
 	mlp.Dims = append(mlp.Dims, inputDims)
-	mlp.Dims = append(mlp.Dims, hiddenDims...)
-	mlp.Dims = append(mlp.Dims, outputDims)
-	mlp.TotalLayersCount = len(hiddenDims) + 2
-
-	for i := range len(hiddenDims) + 1 {
-		mlp.Layers = append(mlp.Layers, NewLayer(mlp.Dims[i], mlp.Dims[i+1]))
+	for _, layer := range layers {
+		mlp.Dims = append(mlp.Dims, layer.OutDim)
 	}
+	mlp.TotalLayersCount = len(layers) + 1
+	mlp.Layers = layers
 	return mlp
 }
 

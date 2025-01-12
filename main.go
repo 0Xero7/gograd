@@ -51,7 +51,7 @@ func main() {
 	// trace(o)
 
 	inputs := [][]*Value{}
-	outputs := []*Value{}
+	outputs := []float64{}
 
 	for num := range 10 {
 		p := filepath.Join("trainingSet", fmt.Sprint(num))
@@ -64,23 +64,30 @@ func main() {
 			data, _ := os.ReadFile(filepath.Join(p, entry.Name()))
 			image, _ := jpeg.Decode(bytes.NewReader(data))
 			dataValues := []*Value{}
-			for y := range 29 {
-				for x := range 29 {
+			for y := range 28 {
+				for x := range 28 {
 					r, _, _, _ := image.At(x, y).RGBA()
 					dataValues = append(dataValues, NewValueLiteral(float64(r)))
 				}
 			}
 			inputs = append(inputs, dataValues)
-			outputs = append(outputs, NewValueLiteral(float64(num)))
+			output := float64(num)
+			outputs = append(outputs, output)
 		}
 	}
 
-	mlp := NewMLP(841, []int{32}, 1)
+	mlp := NewMLP(784, []*Layer{
+		NewLayer(784, 256, Linear),
+		NewLayer(256, 256, Tanh),
+		NewLayer(256, 256, Linear),
+		NewLayer(256, 256, Tanh),
+		NewLayer(256, 10, Linear),
+	})
 	params := mlp.Parameters()
 
-	iterations := 100
-	learningRate := 0.01
-	batchSize := 50
+	iterations := 30
+	learningRate := 0.09
+	batchSize := 32
 
 	totalTime := 0.0
 
@@ -98,11 +105,13 @@ func main() {
 		fpStart := time.Now().UnixMilli()
 		loss := NewValueLiteral(0)
 		for index := range batchSize {
-			output := mlp.Call(inputs[index])[0]
+			results := mlp.Call(inputs[index])
 			target := outputs[index]
 
-			loss = loss.Add(target.Sub(output).Pow(2))
+			lossItem := SoftmaxCrossEntropy(results, int(target))
+			loss = loss.Add(lossItem)
 		}
+		loss = loss.Div(NewValueLiteral(float64(batchSize)))
 		fpEnd := time.Now().UnixMilli()
 		fmt.Printf("Epoch = %d, Loss = %.12f\n", epoch, loss.Value)
 		fmt.Printf("Forward Pass Time = %f\n", float64(fpEnd-fpStart)/1000.0)
@@ -124,9 +133,10 @@ func main() {
 		upEnd := time.Now().UnixMilli()
 		fmt.Printf("Update Time = %f\n", float64(upEnd-upStart)/1000)
 
+		loss.Clear()
+
 		totalTime += float64((upEnd + bpEnd + fpEnd) - (upStart + bpStart + fpStart))
 		fmt.Printf("Epoch %d completed in %f. [%f per epoch].\n\n", epoch, float64((upEnd+bpEnd+fpEnd)-(upStart+bpStart+fpStart))/1000, totalTime/float64(epoch+1))
-
 	}
 
 	for {
@@ -134,7 +144,7 @@ func main() {
 		line, _ := reader.ReadString('\n')
 		line = strings.TrimSpace(line)
 
-		inp := filepath.Join("./testSet", line)
+		inp := filepath.Join("./testSet", "img_"+line+".jpg")
 		fmt.Println(inp)
 		data, err := os.ReadFile(inp)
 		if err != nil {
@@ -142,15 +152,33 @@ func main() {
 		}
 		image, _ := jpeg.Decode(bytes.NewReader(data))
 		dataValues := []*Value{}
-		for y := range 29 {
-			for x := range 29 {
+		for y := range 28 {
+			for x := range 28 {
 				r, _, _, _ := image.At(x, y).RGBA()
 				dataValues = append(dataValues, NewValueLiteral(float64(r)))
 			}
 		}
 
-		result := mlp.Call(dataValues)
+		result := mlp.Predict(dataValues)
 		fmt.Println(result)
-		fmt.Println(result[0].Value)
+		// fmt.Println(result[0].Value)
 	}
+}
+
+// Get predictions for a single input
+func (mlp *MLP) Predict(input []*Value) int {
+	// Forward pass
+	values := mlp.Call(input)
+
+	// Find max logit (don't need full softmax for prediction)
+	maxIdx := 0
+	maxVal := values[0].Value
+	for i, v := range values {
+		if v.Value > maxVal {
+			maxVal = v.Value
+			maxIdx = i
+		}
+	}
+
+	return maxIdx
 }

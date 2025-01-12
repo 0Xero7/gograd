@@ -1,19 +1,37 @@
 package main
 
-import "math/rand"
+import (
+	"math"
+	"math/rand"
+)
+
+type Activation int
+
+const (
+	Linear Activation = iota
+	Tanh
+	ReLu
+)
 
 type Neuron struct {
-	Dimension int
-	Weights   []*Value
-	Bias      *Value
+	Dimension  int
+	Activation Activation
+	Weights    []*Value
+	Bias       *Value
 }
 
-func NewNeuron(dim int) *Neuron {
+func NewNeuron(dim int, activation Activation) *Neuron {
 	n := new(Neuron)
 	n.Dimension = dim
+	n.Activation = activation
 	n.Weights = make([]*Value, dim)
 	for i := range n.Weights {
-		n.Weights[i] = NewValueLiteral((rand.Float64() - 0.5) * 2)
+		if activation != ReLu {
+			n.Weights[i] = NewValueLiteral((rand.Float64() - 0.5) * 2)
+		} else {
+			scale := math.Sqrt(2.0 / float64(dim))
+			n.Weights[i] = NewValueLiteral((rand.Float64()*2 - 1) * scale)
+		}
 	}
 	n.Bias = NewValueLiteral((rand.Float64() - 0.5) * 2)
 	return n
@@ -29,7 +47,17 @@ func (n *Neuron) Call(inputs []*Value) *Value {
 		act = act.Add(n.Weights[i].Mul(inputs[i]))
 	}
 
-	return act.Tanh()
+	switch n.Activation {
+	case Linear:
+		return act
+	case ReLu:
+		return act.ReLu()
+	case Tanh:
+		return act.Tanh()
+
+	default:
+		panic("Unsupported activatin function")
+	}
 }
 
 func (n *Neuron) Parameters() []*Value {

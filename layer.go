@@ -7,14 +7,14 @@ type Layer struct {
 	Neurons []*Neuron
 }
 
-func NewLayer(neuronDim int, outDim int) *Layer {
+func NewLayer(neuronDim int, outDim int, activation Activation) *Layer {
 	layer := new(Layer)
 	layer.NeuronDim = neuronDim
 	layer.Neurons = make([]*Neuron, outDim)
 	layer.OutDim = outDim
 
 	for i := range outDim {
-		layer.Neurons[i] = NewNeuron(neuronDim)
+		layer.Neurons[i] = NewNeuron(neuronDim, activation)
 	}
 	return layer
 }
