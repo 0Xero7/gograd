@@ -15,6 +15,41 @@ import (
 )
 
 func main() {
+
+	// x1 := NewValueLiteral(2.0)
+	// x1.Label = "x1"
+	// x2 := NewValueLiteral(0.0)
+	// x2.Label = "x2"
+
+	// w1 := NewValueLiteral(-3.0)
+	// w1.Label = "w1"
+	// w2 := NewValueLiteral(1.0)
+	// w2.Label = "w2"
+
+	// b := NewValueLiteral(6.88137535870195432)
+	// b.Label = "b"
+
+	// x1w1 := x1.Mul(w1)
+	// x1w1.Label = "x1w1"
+	// x2w2 := x2.Mul(w2)
+	// x2w2.Label = "x2w2"
+
+	// x1w1x2w1 := x1w1.Add(x2w2)
+	// x1w1x2w1.Label = "x1w1x2w1"
+	// n := x1w1x2w1.Add(b)
+	// n.Label = "n"
+
+	// // o := n.Tanh()
+
+	// e := n.Mul(NewValueLiteral(2.0)).Exp()
+	// e.Label = "e"
+	// o := (e.Sub(NewValueLiteral(1))).Div(e.Add(NewValueLiteral(1)))
+	// o.Label = "o"
+
+	// o.PreCalculateBackwardPath()
+	// o.Backward()
+	// trace(o)
+
 	inputs := [][]*Value{}
 	outputs := []*Value{}
 
@@ -41,15 +76,17 @@ func main() {
 	}
 	// inputs = inputs[0:1]
 
-	mlp := NewMLP(841, []int{2}, 1)
+	mlp := NewMLP(841, []int{32}, 1)
 	params := mlp.Parameters()
-	fmt.Println(len(params))
 
-	// mlp.Call(inputs[0])[0].CalculateBackwardPath()
+	// mlp.Layers[2].Neurons[0].
 
 	iterations := 10
 	learningRate := 0.01
 	batchSize := 50
+
+	totalTime := 0.0
+
 	for epoch := range iterations {
 		batch := make([]int, 0)
 		for len(batch) < batchSize {
@@ -71,16 +108,19 @@ func main() {
 		}
 		fpEnd := time.Now().UnixMilli()
 		fmt.Printf("Epoch = %d, Loss = %.12f\n", epoch, loss.Value)
-		fmt.Printf("Forward Pass Time = %d\n", (fpEnd-fpStart)/1000)
+		fmt.Printf("Forward Pass Time = %f\n", float64(fpEnd-fpStart)/1000.0)
 
 		// Backward Pass
 		bpStart := time.Now().UnixMilli()
+		// if epoch == 0 {
+		// 	loss.PreCalculateBackwardPath()
+		// }
 		for _, param := range params {
 			param.Grad = 0
 		}
 		loss.Backward()
 		bpEnd := time.Now().UnixMilli()
-		fmt.Printf("Backward Pass Time = %d\n", (bpEnd-bpStart)/1000)
+		fmt.Printf("Backward Pass Time = %f\n", float64(bpEnd-bpStart)/1000)
 
 		// Update
 		upStart := time.Now().UnixMilli()
@@ -88,8 +128,11 @@ func main() {
 			params[j].Value -= params[j].Grad * learningRate
 		}
 		upEnd := time.Now().UnixMilli()
-		fmt.Printf("Update Time = %d\n", (upEnd-upStart)/1000)
-		fmt.Printf("Epoch %d completed in %d.\n\n", epoch, ((upEnd+bpEnd+fpEnd)-(upStart+bpStart+fpStart))/1000)
+		fmt.Printf("Update Time = %f\n", float64(upEnd-upStart)/1000)
+
+		totalTime += float64((upEnd + bpEnd + fpEnd) - (upStart + bpStart + fpStart))
+		fmt.Printf("Epoch %d completed in %f. [%f per epoch].\n\n", epoch, float64((upEnd+bpEnd+fpEnd)-(upStart+bpStart+fpStart))/1000, totalTime/float64(epoch+1))
+
 	}
 
 	for {

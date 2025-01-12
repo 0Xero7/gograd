@@ -22,6 +22,7 @@ type Value struct {
 func NewValueLiteral(value float64) *Value {
 	v := new(Value)
 	v.Id = rand.Int()
+	v.Label = fmt.Sprint(v.Id)
 
 	v.Value = value
 	v.Grad = 0
@@ -34,6 +35,7 @@ func NewValueLiteral(value float64) *Value {
 func NewValue(value float64, op string, children []*Value) *Value {
 	v := new(Value)
 	v.Id = rand.Int()
+	v.Label = fmt.Sprint(v.Id)
 
 	v.Value = value
 	v.Grad = 0
@@ -123,53 +125,17 @@ func (v *Value) PerformBackward() {
 		v.LocalBackward()
 	}
 }
-
-func (v *Value) CalculateBackwardPath() []*Value {
-	v.Grad = 1.0
-	orders := make(map[*Value]int, 0)
-	path := make([]*Value, 0)
-	visited := make([]int, 0)
-	q := make([]*Value, 0)
-	q = append(q, v)
-
-	for len(q) > 0 {
-		t := q[0]
-		q = q[1:]
-		if slices.Contains(visited, t.Id) {
-			continue
-		}
-
-		if _, found := orders[t]; !found {
-			orders[t] = t.ParentCount
-		}
-		if orders[t] > 0 {
-			orders[t]--
-		}
-		if orders[t] > 0 {
-			continue
-		}
-
-		visited = append(visited, t.Id)
-		path = append(path, t)
-		for _, w := range t.Children {
-			q = append(q, w)
-		}
-	}
-
-	return path
-}
-
 func (v *Value) Backward() {
 	v.Grad = 1.0
 	orders := make(map[*Value]int, 0)
-	visited := make([]int, 0)
+	visited := make(map[int]bool)
 	q := make([]*Value, 0)
 	q = append(q, v)
 
 	for len(q) > 0 {
 		t := q[0]
 		q = q[1:]
-		if slices.Contains(visited, t.Id) {
+		if _, found := visited[t.Id]; found {
 			continue
 		}
 
@@ -183,7 +149,7 @@ func (v *Value) Backward() {
 			continue
 		}
 
-		visited = append(visited, t.Id)
+		visited[t.Id] = true
 		t.PerformBackward()
 		for _, w := range t.Children {
 			q = append(q, w)
