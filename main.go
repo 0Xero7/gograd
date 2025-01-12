@@ -1,93 +1,112 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
-	"image/jpeg"
-	"log"
 	"math/rand"
 	"os"
-	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
 
 func main() {
+	data, err := os.ReadFile("iris.csv")
+	if err != nil {
+		panic(err)
+	}
+	dataStr := string(data)
+	lines := strings.Split(dataStr, "\n")
+	rand.Shuffle(len(lines), func(i, j int) {
+		temp := string(lines[i])
+		lines[i] = string(lines[j])
+		lines[j] = temp
+	})
 
-	// x1 := NewValueLiteral(2.0)
-	// x1.Label = "x1"
-	// x2 := NewValueLiteral(0.0)
-	// x2.Label = "x2"
-
-	// w1 := NewValueLiteral(-3.0)
-	// w1.Label = "w1"
-	// w2 := NewValueLiteral(1.0)
-	// w2.Label = "w2"
-
-	// b := NewValueLiteral(6.88137535870195432)
-	// b.Label = "b"
-
-	// x1w1 := x1.Mul(w1)
-	// x1w1.Label = "x1w1"
-	// x2w2 := x2.Mul(w2)
-	// x2w2.Label = "x2w2"
-
-	// x1w1x2w1 := x1w1.Add(x2w2)
-	// x1w1x2w1.Label = "x1w1x2w1"
-	// n := x1w1x2w1.Add(b)
-	// n.Label = "n"
-
-	// // o := n.Tanh()
-
-	// e := n.Mul(NewValueLiteral(2.0)).Exp()
-	// e.Label = "e"
-	// o := (e.Sub(NewValueLiteral(1))).Div(e.Add(NewValueLiteral(1)))
-	// o.Label = "o"
-
-	// o.PreCalculateBackwardPath()
-	// o.Backward()
-	// trace(o)
+	trainSplit := lines[0:100]
+	testSplit := lines[100:]
 
 	inputs := [][]*Value{}
 	outputs := []float64{}
+	for _, line := range trainSplit {
+		d := strings.Split(line, ",")
+		x1, _ := strconv.ParseFloat(d[0], 64)
+		x2, _ := strconv.ParseFloat(d[1], 64)
+		x3, _ := strconv.ParseFloat(d[2], 64)
+		x4, _ := strconv.ParseFloat(d[3], 64)
+		y, _ := strconv.ParseFloat(d[4], 64)
 
-	for num := range 10 {
-		p := filepath.Join("trainingSet", fmt.Sprint(num))
-		entries, _ := os.ReadDir(p)
-		for ww, entry := range entries {
-			if ww > 5 {
-				// break
-			}
+		inputs = append(inputs, []*Value{
+			NewValueLiteral(x1),
+			NewValueLiteral(x2),
+			NewValueLiteral(x3),
+			NewValueLiteral(x4),
+		})
 
-			data, _ := os.ReadFile(filepath.Join(p, entry.Name()))
-			image, _ := jpeg.Decode(bytes.NewReader(data))
-			dataValues := []*Value{}
-			for y := range 28 {
-				for x := range 28 {
-					r, _, _, _ := image.At(x, y).RGBA()
-					dataValues = append(dataValues, NewValueLiteral(float64(r)))
-				}
-			}
-			inputs = append(inputs, dataValues)
-			output := float64(num)
-			outputs = append(outputs, output)
-		}
+		outputs = append(outputs, y)
 	}
 
-	mlp := NewMLP(784, []*Layer{
-		NewLayer(784, 256, Linear),
-		NewLayer(256, 256, Tanh),
-		NewLayer(256, 256, Linear),
-		NewLayer(256, 256, Tanh),
-		NewLayer(256, 10, Linear),
+	testInputs := [][]*Value{}
+	testOutputs := []float64{}
+	for _, line := range testSplit {
+		d := strings.Split(line, ",")
+		x1, _ := strconv.ParseFloat(d[0], 64)
+		x2, _ := strconv.ParseFloat(d[1], 64)
+		x3, _ := strconv.ParseFloat(d[2], 64)
+		x4, _ := strconv.ParseFloat(d[3], 64)
+		y, _ := strconv.ParseFloat(d[4], 64)
+
+		testInputs = append(inputs, []*Value{
+			NewValueLiteral(x1),
+			NewValueLiteral(x2),
+			NewValueLiteral(x3),
+			NewValueLiteral(x4),
+		})
+
+		testOutputs = append(outputs, y)
+	}
+
+	// for num := range 10 {
+	// 	p := filepath.Join("trainingSet", fmt.Sprint(num))
+	// 	entries, _ := os.ReadDir(p)
+	// 	for ww, entry := range entries {
+	// 		if ww > 5 {
+	// 			// break
+	// 		}
+
+	// 		data, _ := os.ReadFile(filepath.Join(p, entry.Name()))
+	// 		image, _ := jpeg.Decode(bytes.NewReader(data))
+	// 		dataValues := []*Value{}
+	// 		for y := range 28 {
+	// 			for x := range 28 {
+	// 				r, _, _, _ := image.At(x, y).RGBA()
+	// 				dataValues = append(dataValues, NewValueLiteral(float64(r)))
+	// 			}
+	// 		}
+	// 		inputs = append(inputs, dataValues)
+	// 		output := float64(num)
+	// 		outputs = append(outputs, output)
+	// 	}
+	// }
+
+	mlp := NewMLP(4, []*Layer{
+		NewLayer(4, 128, Tanh),
+		NewLayer(128, 64, Tanh),
+		NewLayer(64, 3, Linear),
 	})
+
+	// mlp := NewMLP(784, []*Layer{
+	// 	NewLayer(784, 256, Linear),
+	// 	NewLayer(256, 256, Tanh),
+	// 	NewLayer(256, 256, Linear),
+	// 	NewLayer(256, 256, Tanh),
+	// 	NewLayer(256, 10, Linear),
+	// })
 	params := mlp.Parameters()
 
-	iterations := 30
-	learningRate := 0.09
-	batchSize := 32
+	iterations := 50
+	learningRate := 0.02
+	batchSize := len(inputs)
 
 	totalTime := 0.0
 
@@ -139,30 +158,53 @@ func main() {
 		fmt.Printf("Epoch %d completed in %f. [%f per epoch].\n\n", epoch, float64((upEnd+bpEnd+fpEnd)-(upStart+bpStart+fpStart))/1000, totalTime/float64(epoch+1))
 	}
 
-	for {
-		reader := bufio.NewReader(os.Stdin)
-		line, _ := reader.ReadString('\n')
-		line = strings.TrimSpace(line)
-
-		inp := filepath.Join("./testSet", "img_"+line+".jpg")
-		fmt.Println(inp)
-		data, err := os.ReadFile(inp)
-		if err != nil {
-			log.Fatal(err)
+	// Get accuracy
+	accuracy := 0
+	trainAccuracy := 0
+	testAccuracy := 0
+	for i := range len(trainSplit) {
+		class := mlp.Predict(inputs[i])
+		if class == int(outputs[i]) {
+			accuracy++
+			trainAccuracy++
 		}
-		image, _ := jpeg.Decode(bytes.NewReader(data))
-		dataValues := []*Value{}
-		for y := range 28 {
-			for x := range 28 {
-				r, _, _, _ := image.At(x, y).RGBA()
-				dataValues = append(dataValues, NewValueLiteral(float64(r)))
-			}
-		}
-
-		result := mlp.Predict(dataValues)
-		fmt.Println(result)
-		// fmt.Println(result[0].Value)
 	}
+	for i := range len(testSplit) {
+		class := mlp.Predict(testInputs[i])
+		if class == int(testOutputs[i]) {
+			accuracy++
+			testAccuracy++
+		}
+	}
+
+	fmt.Println(accuracy, "out of", len(lines), "correct. ", (float64(accuracy)*100.0)/float64(len(lines)))
+	fmt.Println("Train accuracy:", float64(trainAccuracy)/float64(len(trainSplit)))
+	fmt.Println("Test accuracy:", float64(testAccuracy)/float64(len(testSplit)))
+
+	// for {
+	// 	reader := bufio.NewReader(os.Stdin)
+	// 	line, _ := reader.ReadString('\n')
+	// 	line = strings.TrimSpace(line)
+
+	// 	inp := filepath.Join("./testSet", "img_"+line+".jpg")
+	// 	fmt.Println(inp)
+	// 	data, err := os.ReadFile(inp)
+	// 	if err != nil {
+	// 		log.Fatal(err)
+	// 	}
+	// 	image, _ := jpeg.Decode(bytes.NewReader(data))
+	// 	dataValues := []*Value{}
+	// 	for y := range 28 {
+	// 		for x := range 28 {
+	// 			r, _, _, _ := image.At(x, y).RGBA()
+	// 			dataValues = append(dataValues, NewValueLiteral(float64(r)))
+	// 		}
+	// 	}
+
+	// 	result := mlp.Predict(dataValues)
+	// 	fmt.Println(result)
+	// 	// fmt.Println(result[0].Value)
+	// }
 }
 
 // Get predictions for a single input
