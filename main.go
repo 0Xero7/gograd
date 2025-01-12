@@ -90,9 +90,8 @@ func main() {
 	// }
 
 	mlp := NewMLP(4, []*Layer{
-		NewLayer(4, 128, Tanh),
-		NewLayer(128, 64, Tanh),
-		NewLayer(64, 3, Linear),
+		NewLayer(4, 16, ReLu),
+		NewLayer(16, 3, Linear),
 	})
 
 	// mlp := NewMLP(784, []*Layer{
