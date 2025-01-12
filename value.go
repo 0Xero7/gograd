@@ -118,10 +118,45 @@ func (v *Value) Pow(other float64) *Value {
 	return t
 }
 
-func (v *Value) performBackward() {
+func (v *Value) PerformBackward() {
 	if v.LocalBackward != nil {
 		v.LocalBackward()
 	}
+}
+
+func (v *Value) CalculateBackwardPath() []*Value {
+	v.Grad = 1.0
+	orders := make(map[*Value]int, 0)
+	path := make([]*Value, 0)
+	visited := make([]int, 0)
+	q := make([]*Value, 0)
+	q = append(q, v)
+
+	for len(q) > 0 {
+		t := q[0]
+		q = q[1:]
+		if slices.Contains(visited, t.Id) {
+			continue
+		}
+
+		if _, found := orders[t]; !found {
+			orders[t] = t.ParentCount
+		}
+		if orders[t] > 0 {
+			orders[t]--
+		}
+		if orders[t] > 0 {
+			continue
+		}
+
+		visited = append(visited, t.Id)
+		path = append(path, t)
+		for _, w := range t.Children {
+			q = append(q, w)
+		}
+	}
+
+	return path
 }
 
 func (v *Value) Backward() {
@@ -149,7 +184,7 @@ func (v *Value) Backward() {
 		}
 
 		visited = append(visited, t.Id)
-		t.performBackward()
+		t.PerformBackward()
 		for _, w := range t.Children {
 			q = append(q, w)
 		}
