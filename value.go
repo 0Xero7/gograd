@@ -125,7 +125,8 @@ func (v *Value) PerformBackward() {
 		v.LocalBackward()
 	}
 }
-func (v *Value) Backward() {
+
+func (v *Value) BackwardBFS() {
 	v.Grad = 1.0
 	orders := make(map[*Value]int, 0)
 	visited := make(map[int]bool)
@@ -154,5 +155,28 @@ func (v *Value) Backward() {
 		for _, w := range t.Children {
 			q = append(q, w)
 		}
+	}
+}
+
+func dfs(root *Value, visited *map[int]bool, collect *[]*Value) {
+	if _, found := (*visited)[root.Id]; found {
+		return
+	}
+
+	(*visited)[root.Id] = true
+	for _, child := range root.Children {
+		dfs(child, visited, collect)
+	}
+	*collect = append(*collect, root)
+}
+
+func (v *Value) Backward() {
+	v.Grad = 1.0
+	visited := make(map[int]bool)
+	collect := make([]*Value, 0)
+
+	dfs(v, &visited, &collect)
+	for i := len(collect) - 1; i >= 0; i-- {
+		collect[i].PerformBackward()
 	}
 }

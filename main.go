@@ -74,14 +74,11 @@ func main() {
 			outputs = append(outputs, NewValueLiteral(float64(num)))
 		}
 	}
-	// inputs = inputs[0:1]
 
 	mlp := NewMLP(841, []int{32}, 1)
 	params := mlp.Parameters()
 
-	// mlp.Layers[2].Neurons[0].
-
-	iterations := 10
+	iterations := 100
 	learningRate := 0.01
 	batchSize := 50
 
@@ -112,9 +109,6 @@ func main() {
 
 		// Backward Pass
 		bpStart := time.Now().UnixMilli()
-		// if epoch == 0 {
-		// 	loss.PreCalculateBackwardPath()
-		// }
 		for _, param := range params {
 			param.Grad = 0
 		}
