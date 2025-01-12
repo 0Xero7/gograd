@@ -3,28 +3,38 @@ package main
 import (
 	"fmt"
 	"math"
+	"math/rand"
 	"slices"
 )
 
 type Value struct {
+	Id            int
 	Value         float64
 	Grad          float64
 	LocalBackward func()
 	Op            string
 	Children      []*Value
+	Label         string
+
+	ParentCount int
 }
 
 func NewValueLiteral(value float64) *Value {
 	v := new(Value)
+	v.Id = rand.Int()
+
 	v.Value = value
 	v.Grad = 0
 	v.Op = "X"
+	v.ParentCount = 0
 	v.Children = make([]*Value, 0)
 	return v
 }
 
 func NewValue(value float64, op string, children []*Value) *Value {
 	v := new(Value)
+	v.Id = rand.Int()
+
 	v.Value = value
 	v.Grad = 0
 	v.Op = op
@@ -32,6 +42,7 @@ func NewValue(value float64, op string, children []*Value) *Value {
 
 	for _, val := range children {
 		if !slices.Contains(v.Children, val) {
+			val.ParentCount++
 			v.Children = append(v.Children, val)
 		}
 	}
@@ -52,8 +63,7 @@ func (v *Value) String() string {
 func (v *Value) Negate() *Value {
 	t := NewValue(-v.Value, "neg", []*Value{v})
 	t.LocalBackward = func() {
-		v.Grad = -1.0 * t.Grad
-		v.performBackward()
+		v.Grad += -1.0 * t.Grad
 	}
 	return t
 }
@@ -63,8 +73,6 @@ func (v *Value) Add(other *Value) *Value {
 	t.LocalBackward = func() {
 		v.Grad += t.Grad
 		other.Grad += t.Grad
-		v.performBackward()
-		other.performBackward()
 	}
 	return t
 }
@@ -78,8 +86,6 @@ func (v *Value) Mul(other *Value) *Value {
 	t.LocalBackward = func() {
 		v.Grad += t.Grad * other.Value
 		other.Grad += t.Grad * v.Value
-		v.performBackward()
-		other.performBackward()
 	}
 	return t
 }
@@ -91,8 +97,7 @@ func (v *Value) Div(other *Value) *Value {
 func (v *Value) Tanh() *Value {
 	t := NewValue(math.Tanh(v.Value), "tanh", []*Value{v})
 	t.LocalBackward = func() {
-		v.Grad = (1.0 - math.Pow(t.Value, 2.0)) * t.Grad
-		v.performBackward()
+		v.Grad += (1.0 - math.Pow(t.Value, 2.0)) * t.Grad
 	}
 	return t
 }
@@ -101,7 +106,6 @@ func (v *Value) Exp() *Value {
 	t := NewValue(math.Exp(v.Value), "exp", []*Value{v})
 	t.LocalBackward = func() {
 		v.Grad += t.Value * t.Grad
-		v.performBackward()
 	}
 	return t
 }
@@ -110,7 +114,6 @@ func (v *Value) Pow(other float64) *Value {
 	t := NewValue(math.Pow(v.Value, other), "pow", []*Value{v})
 	t.LocalBackward = func() {
 		v.Grad += other * math.Pow(v.Value, other-1) * t.Grad
-		v.performBackward()
 	}
 	return t
 }
@@ -123,5 +126,32 @@ func (v *Value) performBackward() {
 
 func (v *Value) Backward() {
 	v.Grad = 1.0
-	v.performBackward()
+	orders := make(map[*Value]int, 0)
+	visited := make([]int, 0)
+	q := make([]*Value, 0)
+	q = append(q, v)
+
+	for len(q) > 0 {
+		t := q[0]
+		q = q[1:]
+		if slices.Contains(visited, t.Id) {
+			continue
+		}
+
+		if _, found := orders[t]; !found {
+			orders[t] = t.ParentCount
+		}
+		if orders[t] > 0 {
+			orders[t]--
+		}
+		if orders[t] > 0 {
+			continue
+		}
+
+		visited = append(visited, t.Id)
+		t.performBackward()
+		for _, w := range t.Children {
+			q = append(q, w)
+		}
+	}
 }

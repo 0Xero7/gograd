@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/goccy/go-graphviz"
 	"github.com/goccy/go-graphviz/cgraph"
@@ -44,7 +45,7 @@ func trace(root *Value) {
 
 		// Create value node with box shape
 		node, err := graph.CreateNodeByName(getNodeID(v))
-		node.SetLabel(fmt.Sprintf("data=%.4f\ngrad=%.4f", v.Value, v.Grad))
+		node.SetLabel(fmt.Sprintf("%s | data=%.4f | grad=%.4f", v.Label, v.Value, v.Grad))
 		node.SetShape("box")
 		node.SetStyle("filled")
 		node.SetFillColor("lightblue")
@@ -68,7 +69,7 @@ func trace(root *Value) {
 
 			// Connect operation node to result with visible edge
 			edge, err := graph.CreateEdgeByName("", opNode, node)
-			edge.SetStyle(cgraph.SolidEdgeStyle)
+			edge.SetStyle(cgraph.BoldEdgeStyle)
 			if err != nil {
 				panic(err)
 			}
@@ -78,7 +79,7 @@ func trace(root *Value) {
 			for _, child := range v.Children {
 				childNode := buildGraph(child)
 				edge, err := graph.CreateEdgeByName("", childNode, opNode)
-				edge.SetStyle(cgraph.SolidEdgeStyle)
+				edge.SetStyle(cgraph.BoldEdgeStyle)
 				if err != nil {
 					panic(err)
 				}
@@ -94,8 +95,5 @@ func trace(root *Value) {
 		log.Fatal(err)
 	}
 
-	// 3. write to file directly
-	if err := g.RenderFilename(ctx, graph, graphviz.PNG, "graph.png"); err != nil {
-		panic(err)
-	}
+	os.WriteFile("output/graph.dot", buf.Bytes(), os.ModePerm)
 }
