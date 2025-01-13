@@ -123,6 +123,15 @@ func (v *Value) ReLu() *Value {
 	return t
 }
 
+func (v *Value) Sigmoid() *Value {
+	val := 1.0 / (1.0 + math.Exp(-v.Value))
+	t := NewValue(val, "sigmoid", []*Value{v})
+	t.LocalBackward = func() {
+		v.Grad += (t.Value) * (1.0 - v.Value) * t.Grad
+	}
+	return t
+}
+
 func (v *Value) Exp() *Value {
 	t := NewValue(math.Exp(v.Value), "exp", []*Value{v})
 	t.LocalBackward = func() {

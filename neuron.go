@@ -11,6 +11,7 @@ const (
 	Linear Activation = iota
 	Tanh
 	ReLu
+	Sigmoid
 )
 
 type Neuron struct {
@@ -54,6 +55,8 @@ func (n *Neuron) Call(inputs []*Value) *Value {
 		return act.ReLu()
 	case Tanh:
 		return act.Tanh()
+	case Sigmoid:
+		return act.Sigmoid()
 
 	default:
 		panic("Unsupported activatin function")
