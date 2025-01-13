@@ -1,4 +1,8 @@
 output
 
+gograd
+gograd.exe
+grad
+
 trainingSet/
 testSet/

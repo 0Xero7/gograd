@@ -1,4 +1,4 @@
-package main
+package ng
 
 import (
 	"fmt"
@@ -76,6 +76,7 @@ func (v *Value) Add(other *Value) *Value {
 	} else {
 		t.Value = v.Value + other.Value
 	}
+	t.Grad = 0
 	v.CachedNode = t
 	other.CachedNode = t
 
@@ -97,6 +98,7 @@ func (v *Value) Mul(other *Value) *Value {
 	} else {
 		t.Value = v.Value * other.Value
 	}
+	t.Grad = 0
 	v.CachedNode = t
 	other.CachedNode = t
 

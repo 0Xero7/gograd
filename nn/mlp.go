@@ -1,4 +1,6 @@
-package main
+package nn
+
+import "gograd/ng"
 
 type MLP struct {
 	InputDim         int
@@ -23,7 +25,7 @@ func NewMLP(inputDims int, layers []*Layer) *MLP {
 	return mlp
 }
 
-func (m *MLP) Call(inputs []*Value) []*Value {
+func (m *MLP) Call(inputs []*ng.Value) []*ng.Value {
 	t := inputs
 	for _, layer := range m.Layers {
 		t = layer.Call(t)
@@ -31,10 +33,28 @@ func (m *MLP) Call(inputs []*Value) []*Value {
 	return t
 }
 
-func (m *MLP) Parameters() []*Value {
-	params := make([]*Value, 0)
+func (m *MLP) Parameters() []*ng.Value {
+	params := make([]*ng.Value, 0)
 	for _, n := range m.Layers {
 		params = append(params, n.Parameters()...)
 	}
 	return params
+}
+
+// Get predictions for a single input
+func (mlp *MLP) Predict(input []*ng.Value) int {
+	// Forward pass
+	values := mlp.Call(input)
+
+	// Find max logit (don't need full softmax for prediction)
+	maxIdx := 0
+	maxVal := values[0].Value
+	for i, v := range values {
+		if v.Value > maxVal {
+			maxVal = v.Value
+			maxIdx = i
+		}
+	}
+
+	return maxIdx
 }

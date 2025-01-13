@@ -1,14 +1,16 @@
-package main
+package lossfunctions
 
-func SoftmaxCrossEntropy(logits []*Value, class int) *Value {
+import "gograd/ng"
+
+func SoftmaxCrossEntropy(logits []*ng.Value, class int) *ng.Value {
 	maxLogit := logits[0].Value
 	for _, logit := range logits {
 		maxLogit = max(maxLogit, logit.Value)
 	}
 
-	maxLogitNode := NewValueLiteral(maxLogit)
-	exps := make([]*Value, 0)
-	sumExp := NewValueLiteral(0)
+	maxLogitNode := ng.NewValueLiteral(maxLogit)
+	exps := make([]*ng.Value, 0)
+	sumExp := ng.NewValueLiteral(0)
 	for i := range logits {
 		shifted := logits[i].Sub(maxLogitNode)
 		exp := shifted.Exp()
@@ -16,7 +18,7 @@ func SoftmaxCrossEntropy(logits []*Value, class int) *Value {
 		sumExp = sumExp.Add(exp)
 	}
 
-	probs := make([]*Value, len(logits))
+	probs := make([]*ng.Value, len(logits))
 	for i := range exps {
 		probs[i] = exps[i].Div(sumExp)
 	}

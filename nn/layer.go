@@ -1,4 +1,6 @@
-package main
+package nn
+
+import "gograd/ng"
 
 type Layer struct {
 	NeuronDim int
@@ -19,20 +21,20 @@ func NewLayer(neuronDim int, outDim int, activation Activation) *Layer {
 	return layer
 }
 
-func (l *Layer) Call(inputs []*Value) []*Value {
+func (l *Layer) Call(inputs []*ng.Value) []*ng.Value {
 	if len(inputs) != l.NeuronDim {
 		panic("Input dimensions don't match neuron dimensions")
 	}
 
-	out := make([]*Value, l.OutDim)
+	out := make([]*ng.Value, l.OutDim)
 	for i := range l.OutDim {
 		out[i] = l.Neurons[i].Call(inputs)
 	}
 	return out
 }
 
-func (l *Layer) Parameters() []*Value {
-	params := make([]*Value, 0)
+func (l *Layer) Parameters() []*ng.Value {
+	params := make([]*ng.Value, 0)
 	for _, n := range l.Neurons {
 		params = append(params, n.Parameters()...)
 	}

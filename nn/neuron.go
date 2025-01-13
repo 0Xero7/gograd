@@ -1,6 +1,7 @@
-package main
+package nn
 
 import (
+	"gograd/ng"
 	"math"
 	"math/rand"
 )
@@ -17,28 +18,28 @@ const (
 type Neuron struct {
 	Dimension  int
 	Activation Activation
-	Weights    []*Value
-	Bias       *Value
+	Weights    []*ng.Value
+	Bias       *ng.Value
 }
 
 func NewNeuron(dim int, activation Activation) *Neuron {
 	n := new(Neuron)
 	n.Dimension = dim
 	n.Activation = activation
-	n.Weights = make([]*Value, dim)
+	n.Weights = make([]*ng.Value, dim)
 	for i := range n.Weights {
 		if activation != ReLu {
-			n.Weights[i] = NewValueLiteral((rand.Float64() - 0.5) * 2)
+			n.Weights[i] = ng.NewValueLiteral((rand.Float64() - 0.5) * 2)
 		} else {
 			scale := math.Sqrt(2.0 / float64(dim))
-			n.Weights[i] = NewValueLiteral((rand.Float64()*2 - 1) * scale)
+			n.Weights[i] = ng.NewValueLiteral((rand.Float64()*2 - 1) * scale)
 		}
 	}
-	n.Bias = NewValueLiteral((rand.Float64() - 0.5) * 2)
+	n.Bias = ng.NewValueLiteral((rand.Float64() - 0.5) * 2)
 	return n
 }
 
-func (n *Neuron) Call(inputs []*Value) *Value {
+func (n *Neuron) Call(inputs []*ng.Value) *ng.Value {
 	if len(inputs) != n.Dimension {
 		panic("Input dimensions don't match neuron dimensions")
 	}
@@ -63,8 +64,8 @@ func (n *Neuron) Call(inputs []*Value) *Value {
 	}
 }
 
-func (n *Neuron) Parameters() []*Value {
-	params := make([]*Value, 0)
+func (n *Neuron) Parameters() []*ng.Value {
+	params := make([]*ng.Value, 0)
 	params = append(params, n.Weights...)
 	params = append(params, n.Bias)
 	return params
