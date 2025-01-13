@@ -70,15 +70,19 @@ func (v *Value) Negate() *Value {
 }
 
 func (v *Value) Add(other *Value) *Value {
-	var t *Value = v.CachedNode
-	if t == nil {
-		t = NewValue(v.Value+other.Value, "+", []*Value{v, other})
-	} else {
-		t.Value = v.Value + other.Value
-	}
-	t.Grad = 0
-	v.CachedNode = t
-	other.CachedNode = t
+	// var t *Value = v.CachedNode
+	// if t == nil {
+	// 	t = NewValue(v.Value+other.Value, "+", []*Value{v, other})
+	// } else {
+	// 	t.Value = v.Value + other.Value
+	// }
+	// v.CachedNode = nil
+	// other.CachedNode = nil
+	t := NewValue(v.Value+other.Value, "+", []*Value{v, other})
+	// v.CachedNode = t
+	// t.Grad = 0
+	// v.CachedNode = t
+	// other.CachedNode = t
 
 	t.LocalBackward = func() {
 		v.Grad += t.Grad
@@ -92,15 +96,16 @@ func (v *Value) Sub(other *Value) *Value {
 }
 
 func (v *Value) Mul(other *Value) *Value {
-	var t *Value = v.CachedNode
-	if t == nil {
-		t = NewValue(v.Value*other.Value, "*", []*Value{v, other})
-	} else {
-		t.Value = v.Value * other.Value
-	}
-	t.Grad = 0
-	v.CachedNode = t
-	other.CachedNode = t
+	// var t *Value = v.CachedNode
+	// if t == nil {
+	// 	t = NewValue(v.Value*other.Value, "*", []*Value{v, other})
+	// } else {
+	// 	t.Value = v.Value * other.Value
+	// }
+	t := NewValue(v.Value*other.Value, "*", []*Value{v, other})
+	// t.Grad = 0
+	// v.CachedNode = t
+	// other.CachedNode = t
 
 	t.LocalBackward = func() {
 		v.Grad += t.Grad * other.Value
@@ -192,6 +197,9 @@ func (v *Value) Backward() {
 	collect := make([]*Value, 0)
 
 	dfs(v, &visited, &collect)
+	// for i := range collect {
+	// 	collect[i].Grad = 0.0
+	// }
 	for i := len(collect) - 1; i >= 0; i-- {
 		collect[i].PerformBackward()
 	}

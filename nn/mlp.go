@@ -1,6 +1,8 @@
 package nn
 
-import "gograd/ng"
+import (
+	"gograd/ng"
+)
 
 type MLP struct {
 	InputDim         int
@@ -8,17 +10,17 @@ type MLP struct {
 	Dims             []int
 	TotalLayersCount int
 
-	Layers []*Layer
+	Layers []Layer
 }
 
-func NewMLP(inputDims int, layers []*Layer) *MLP {
+func NewMLP(inputDims int, layers []Layer) *MLP {
 	mlp := new(MLP)
 	mlp.InputDim = inputDims
-	mlp.OutputDim = layers[len(layers)-1].OutDim
+	mlp.OutputDim = layers[len(layers)-1].FanOut()
 	mlp.Dims = make([]int, 0)
 	mlp.Dims = append(mlp.Dims, inputDims)
 	for _, layer := range layers {
-		mlp.Dims = append(mlp.Dims, layer.OutDim)
+		mlp.Dims = append(mlp.Dims, layer.FanOut())
 	}
 	mlp.TotalLayersCount = len(layers) + 1
 	mlp.Layers = layers

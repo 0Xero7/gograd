@@ -10,9 +10,10 @@ import (
 	"slices"
 	"time"
 
-	lossfunctions "gograd/loss_functions"
 	"gograd/ng"
 	"gograd/nn"
+	"gograd/nn/layers"
+	lossfunctions "gograd/nn/loss_functions"
 )
 
 var trainInputs [][]*ng.Value
@@ -55,10 +56,19 @@ func LoadDataset() {
 }
 
 func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLP {
-	mlp := nn.NewMLP(784, []*nn.Layer{
-		nn.NewLayer(784, 512, nn.ReLu),
+	mlp := nn.NewMLP(784, []nn.Layer{
+		layers.Linear(784, 128),
+		layers.ReLu(128),
+
+		layers.Linear(128, 64),
+		layers.Sigmoid(64),
+
+		layers.Linear(64, 32),
+		layers.Sigmoid(32),
+
+		layers.Linear(32, 10),
 		// nn.NewLayer(512, 256, nn.ReLu),
-		nn.NewLayer(512, 10, nn.Linear),
+		// nn.NewLayer(512, 10, nn.Linear),
 	})
 	params := mlp.Parameters()
 

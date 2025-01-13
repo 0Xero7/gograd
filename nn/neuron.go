@@ -2,7 +2,6 @@ package nn
 
 import (
 	"gograd/ng"
-	"math"
 	"math/rand"
 )
 
@@ -22,18 +21,17 @@ type Neuron struct {
 	Bias       *ng.Value
 }
 
-func NewNeuron(dim int, activation Activation) *Neuron {
+func NewNeuron(dim int) *Neuron {
 	n := new(Neuron)
 	n.Dimension = dim
-	n.Activation = activation
 	n.Weights = make([]*ng.Value, dim)
 	for i := range n.Weights {
-		if activation != ReLu {
-			n.Weights[i] = ng.NewValueLiteral((rand.Float64() - 0.5) * 2)
-		} else {
-			scale := math.Sqrt(2.0 / float64(dim))
-			n.Weights[i] = ng.NewValueLiteral((rand.Float64()*2 - 1) * scale)
-		}
+		// if activation != ReLu {
+		n.Weights[i] = ng.NewValueLiteral((rand.Float64() - 0.5) * 2)
+		// } else {
+		// 	scale := math.Sqrt(2.0 / float64(dim))
+		// 	n.Weights[i] = ng.NewValueLiteral((rand.Float64()*2 - 1) * scale)
+		// }
 	}
 	n.Bias = ng.NewValueLiteral((rand.Float64() - 0.5) * 2)
 	return n
@@ -49,19 +47,19 @@ func (n *Neuron) Call(inputs []*ng.Value) *ng.Value {
 		act = act.Add(n.Weights[i].Mul(inputs[i]))
 	}
 
-	switch n.Activation {
-	case Linear:
-		return act
-	case ReLu:
-		return act.ReLu()
-	case Tanh:
-		return act.Tanh()
-	case Sigmoid:
-		return act.Sigmoid()
+	return act
+	// switch n.Activation {
+	// case Linear:
+	// case ReLu:
+	// 	return act.ReLu()
+	// case Tanh:
+	// 	return act.Tanh()
+	// case Sigmoid:
+	// 	return act.Sigmoid()
 
-	default:
-		panic("Unsupported activatin function")
-	}
+	// default:
+	// 	panic("Unsupported activatin function")
+	// }
 }
 
 func (n *Neuron) Parameters() []*ng.Value {

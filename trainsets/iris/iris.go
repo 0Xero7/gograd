@@ -2,9 +2,10 @@ package iris
 
 import (
 	"fmt"
-	lossfunctions "gograd/loss_functions"
 	"gograd/ng"
 	"gograd/nn"
+	"gograd/nn/layers"
+	lossfunctions "gograd/nn/loss_functions"
 	"math/rand"
 	"os"
 	"slices"
@@ -26,10 +27,11 @@ func LoadAndSplitDataset() {
 	}
 	dataStr := string(data)
 	lines := strings.Split(dataStr, "\n")
+	for i := range len(lines) {
+		lines[i] = strings.TrimSpace(lines[i])
+	}
 	rand.Shuffle(len(lines), func(i, j int) {
-		temp := string(lines[i])
-		lines[i] = string(lines[j])
-		lines[j] = temp
+		lines[i], lines[j] = lines[j], lines[i]
 	})
 
 	trainSplit := lines[0:100]
@@ -77,9 +79,10 @@ func LoadAndSplitDataset() {
 }
 
 func TrainIris(iterations, batchSize int, learningRate float64) *nn.MLP {
-	mlp := nn.NewMLP(4, []*nn.Layer{
-		nn.NewLayer(4, 1, nn.Sigmoid),
-		nn.NewLayer(1, 3, nn.Linear),
+	mlp := nn.NewMLP(4, []nn.Layer{
+		layers.Linear(4, 32),
+		layers.Tanh(32),
+		layers.Linear(32, 3),
 	})
 	params := mlp.Parameters()
 
@@ -153,6 +156,7 @@ func TestIris(mlp *nn.MLP) {
 	total := len(trainInputs) + len(testInputs)
 	for i := range len(trainInputs) {
 		class := mlp.Predict(trainInputs[i])
+		fmt.Printf("Output #%d: Actual: %.0f Got: %d\n", i, trainOutputs[i], class)
 		if class == int(trainOutputs[i]) {
 			accuracy++
 			trainAccuracy++
@@ -160,6 +164,7 @@ func TestIris(mlp *nn.MLP) {
 	}
 	for i := range len(testInputs) {
 		class := mlp.Predict(testInputs[i])
+		fmt.Printf("Output #%d: Actual: %.0f Got: %d\n", i, testOutputs[i], class)
 		if class == int(testOutputs[i]) {
 			accuracy++
 			testAccuracy++
