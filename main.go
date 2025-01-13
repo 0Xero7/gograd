@@ -90,8 +90,8 @@ func main() {
 	// }
 
 	mlp := NewMLP(4, []*Layer{
-		NewLayer(4, 16, ReLu),
-		NewLayer(16, 3, Linear),
+		NewLayer(4, 8, Sigmoid),
+		NewLayer(8, 3, Linear),
 	})
 
 	// mlp := NewMLP(784, []*Layer{
@@ -103,7 +103,7 @@ func main() {
 	// })
 	params := mlp.Parameters()
 
-	iterations := 50
+	iterations := 1000
 	learningRate := 0.02
 	batchSize := len(inputs)
 
@@ -179,6 +179,7 @@ func main() {
 	fmt.Println(accuracy, "out of", len(lines), "correct. ", (float64(accuracy)*100.0)/float64(len(lines)))
 	fmt.Println("Train accuracy:", float64(trainAccuracy)/float64(len(trainSplit)))
 	fmt.Println("Test accuracy:", float64(testAccuracy)/float64(len(testSplit)))
+	fmt.Println("# params:", len(mlp.Parameters()))
 
 	// for {
 	// 	reader := bufio.NewReader(os.Stdin)
