@@ -4,8 +4,11 @@ import (
 	"flag"
 	"fmt"
 	"gograd/trainsets/iris"
+	"log"
 	"math/rand"
+	"os"
 	"runtime"
+	"runtime/pprof"
 )
 
 var memprofile = flag.String("memprofile", "", "write memory profile to file")
@@ -25,6 +28,7 @@ func printMemStats() {
 /*
 BEFORE:
 
+======================= 1000 epochs =============================================
 148 out of 150 correct.  98.66666666666667
 Train accuracy: [99] of [100] = 0.99
 Test accuracy: [49] of [50] = 0.98
@@ -32,6 +36,13 @@ Test accuracy: [49] of [50] = 0.98
 Alloc = 1 MB
 Total Alloc = 9926 MB
 
+======================= 100 epochs =============================================
+131 out of 150 correct.  87.33333333333333
+Train accuracy: [89] of [100] = 0.89
+Test accuracy: [42] of [50] = 0.84
+# params: 291
+Alloc = 595 MB
+Total Alloc = 1015 MB
 
 AFTER:
 */
@@ -44,6 +55,15 @@ func main() {
 	iris.LoadAndSplitDataset()
 	printMemStats()
 	mlp := iris.TrainIris(1000, 100, 0.01)
+	if *memprofile != "" {
+		f, err := os.Create(*memprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.WriteHeapProfile(f)
+		f.Close()
+	}
+	// mlp := iris.TrainIris(1000, 100, 0.01)
 	printMemStats()
 	iris.TestIris(mlp)
 	printMemStats()

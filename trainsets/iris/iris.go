@@ -135,15 +135,6 @@ func TrainIris(iterations, batchSize int, learningRate float64) *nn.MLP {
 		totalTime += float64((upEnd + bpEnd + fpEnd) - (upStart + bpStart + fpStart))
 		fmt.Printf("Epoch %d completed in %f. [%f per epoch].\n\n", epoch, float64((upEnd+bpEnd+fpEnd)-(upStart+bpStart+fpStart))/1000, totalTime/float64(epoch+1))
 
-		// if *memprofile != "" {
-		// 	f, err := os.Create(*memprofile)
-		// 	if err != nil {
-		// 		log.Fatal(err)
-		// 	}
-		// 	pprof.WriteHeapProfile(f)
-		// 	f.Close()
-		// 	break
-		// }
 	}
 
 	return mlp

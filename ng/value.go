@@ -3,8 +3,10 @@ package ng
 import (
 	"fmt"
 	"math"
-	"math/rand"
+	"sync/atomic"
 )
+
+var idGen atomic.Int64
 
 type Value struct {
 	Id            int
@@ -15,30 +17,34 @@ type Value struct {
 	Children      []*Value
 	// Label         string
 
-	CachedNode *Value
+	CachedNodes map[int]*Value
 }
 
 func NewValueLiteral(value float64) *Value {
 	v := new(Value)
-	v.Id = rand.Int()
+	v.Id = int(idGen.Load())
+	idGen.Add(1)
 	// v.Label = fmt.Sprint(v.Id)
 
 	v.Value = value
 	v.Grad = 0
 	v.Op = "X"
 	v.Children = make([]*Value, 0)
+	v.CachedNodes = make(map[int]*Value)
 	return v
 }
 
 func NewValue(value float64, op string, children []*Value) *Value {
 	v := new(Value)
-	v.Id = rand.Int()
+	v.Id = int(idGen.Load())
+	idGen.Add(1)
 	// v.Label = fmt.Sprint(v.Id)
 
 	v.Value = value
 	v.Grad = 0
 	v.Op = op
 	v.Children = make([]*Value, 0, len(children))
+	v.CachedNodes = make(map[int]*Value)
 
 	seen := make(map[*Value]bool)
 	for _, val := range children {
@@ -70,24 +76,26 @@ func (v *Value) Negate() *Value {
 }
 
 func (v *Value) Add(other *Value) *Value {
-	// var t *Value = v.CachedNode
-	// if t == nil {
-	// 	t = NewValue(v.Value+other.Value, "+", []*Value{v, other})
-	// } else {
-	// 	t.Value = v.Value + other.Value
-	// }
+	t, found := v.CachedNodes[other.Id]
+	if found {
+		t = NewValue(v.Value+other.Value, "+", []*Value{v, other})
+		v.CachedNodes[other.Id] = t
+		other.CachedNodes[v.Id] = t
+
+		t.LocalBackward = func() {
+			v.Grad += t.Grad
+			other.Grad += t.Grad
+		}
+	} else {
+		t.Value = v.Value + other.Value
+		t.Grad = 0
+	}
 	// v.CachedNode = nil
 	// other.CachedNode = nil
-	t := NewValue(v.Value+other.Value, "+", []*Value{v, other})
+	// t := NewValue(v.Value+other.Value, "+", []*Value{v, other})
 	// v.CachedNode = t
 	// t.Grad = 0
-	// v.CachedNode = t
-	// other.CachedNode = t
 
-	t.LocalBackward = func() {
-		v.Grad += t.Grad
-		other.Grad += t.Grad
-	}
 	return t
 }
 
@@ -96,21 +104,22 @@ func (v *Value) Sub(other *Value) *Value {
 }
 
 func (v *Value) Mul(other *Value) *Value {
-	// var t *Value = v.CachedNode
-	// if t == nil {
-	// 	t = NewValue(v.Value*other.Value, "*", []*Value{v, other})
-	// } else {
-	// 	t.Value = v.Value * other.Value
-	// }
-	t := NewValue(v.Value*other.Value, "*", []*Value{v, other})
-	// t.Grad = 0
-	// v.CachedNode = t
-	// other.CachedNode = t
-
-	t.LocalBackward = func() {
-		v.Grad += t.Grad * other.Value
-		other.Grad += t.Grad * v.Value
+	t, found := v.CachedNodes[other.Id]
+	if found {
+		t = NewValue(v.Value*other.Value, "*", []*Value{v, other})
+		t.LocalBackward = func() {
+			v.Grad += t.Grad * other.Value
+			other.Grad += t.Grad * v.Value
+		}
+		v.CachedNodes[other.Id] = t
+		other.CachedNodes[v.Id] = t
+	} else {
+		t.Value = v.Value * other.Value
+		t.Grad = 0
 	}
+	// t := NewValue(v.Value*other.Value, "*", []*Value{v, other})
+	// t.Grad = 0
+
 	return t
 }
 
