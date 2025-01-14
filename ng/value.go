@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 )
 
-var idGen atomic.Int64
+var IdGen atomic.Int64
 
 type Value struct {
 	Id            int
@@ -17,42 +17,42 @@ type Value struct {
 	Children      []*Value
 	// Label         string
 
-	CachedNodes map[int]*Value
+	Parents map[int]*Value
 }
 
 func NewValueLiteral(value float64) *Value {
 	v := new(Value)
-	v.Id = int(idGen.Load())
-	idGen.Add(1)
+	v.Id = int(IdGen.Load())
+	IdGen.Add(1)
 	// v.Label = fmt.Sprint(v.Id)
 
 	v.Value = value
 	v.Grad = 0
 	v.Op = "X"
-	v.Children = make([]*Value, 0)
-	v.CachedNodes = make(map[int]*Value)
+	v.Children = []*Value{}
+	v.Parents = make(map[int]*Value)
 	return v
 }
 
 func NewValue(value float64, op string, children []*Value) *Value {
 	v := new(Value)
-	v.Id = int(idGen.Load())
-	idGen.Add(1)
+	v.Id = int(IdGen.Load())
+	IdGen.Add(1)
 	// v.Label = fmt.Sprint(v.Id)
 
 	v.Value = value
 	v.Grad = 0
 	v.Op = op
-	v.Children = make([]*Value, 0, len(children))
-	v.CachedNodes = make(map[int]*Value)
+	v.Children = children
+	v.Parents = make(map[int]*Value)
 
-	seen := make(map[*Value]bool)
-	for _, val := range children {
-		if !seen[val] {
-			v.Children = append(v.Children, val)
-			seen[val] = true
-		}
-	}
+	// seen := make(map[*Value]bool)
+	// for _, val := range children {
+	// 	if !seen[val] {
+	// 		v.Children = append(v.Children, val)
+	// 		seen[val] = true
+	// 	}
+	// }
 
 	return v
 }
@@ -76,11 +76,11 @@ func (v *Value) Negate() *Value {
 }
 
 func (v *Value) Add(other *Value) *Value {
-	t, found := v.CachedNodes[other.Id]
-	if found {
+	t, found := v.Parents[other.Id]
+	if !found {
 		t = NewValue(v.Value+other.Value, "+", []*Value{v, other})
-		v.CachedNodes[other.Id] = t
-		other.CachedNodes[v.Id] = t
+		v.Parents[other.Id] = t
+		other.Parents[v.Id] = t
 
 		t.LocalBackward = func() {
 			v.Grad += t.Grad
@@ -104,15 +104,15 @@ func (v *Value) Sub(other *Value) *Value {
 }
 
 func (v *Value) Mul(other *Value) *Value {
-	t, found := v.CachedNodes[other.Id]
-	if found {
+	t, found := v.Parents[other.Id]
+	if !found {
 		t = NewValue(v.Value*other.Value, "*", []*Value{v, other})
 		t.LocalBackward = func() {
 			v.Grad += t.Grad * other.Value
 			other.Grad += t.Grad * v.Value
 		}
-		v.CachedNodes[other.Id] = t
-		other.CachedNodes[v.Id] = t
+		v.Parents[other.Id] = t
+		other.Parents[v.Id] = t
 	} else {
 		t.Value = v.Value * other.Value
 		t.Grad = 0

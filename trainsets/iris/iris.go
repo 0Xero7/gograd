@@ -110,8 +110,8 @@ func TrainIris(iterations, batchSize int, learningRate float64) *nn.MLP {
 		}
 		loss = loss.Div(ng.NewValueLiteral(float64(batchSize)))
 		fpEnd := time.Now().UnixMilli()
-		fmt.Printf("Epoch = %d, Loss = %.12f\n", epoch, loss.Value)
-		fmt.Printf("Forward Pass Time = %f\n", float64(fpEnd-fpStart)/1000.0)
+		// fmt.Printf("Epoch = %d, Loss = %.12f\n", epoch, loss.Value)
+		// fmt.Printf("Forward Pass Time = %f\n", float64(fpEnd-fpStart)/1000.0)
 
 		// Backward Pass
 		bpStart := time.Now().UnixMilli()
@@ -120,7 +120,7 @@ func TrainIris(iterations, batchSize int, learningRate float64) *nn.MLP {
 		}
 		loss.Backward()
 		bpEnd := time.Now().UnixMilli()
-		fmt.Printf("Backward Pass Time = %f\n", float64(bpEnd-bpStart)/1000)
+		// fmt.Printf("Backward Pass Time = %f\n", float64(bpEnd-bpStart)/1000)
 
 		// Update
 		upStart := time.Now().UnixMilli()
@@ -128,13 +128,17 @@ func TrainIris(iterations, batchSize int, learningRate float64) *nn.MLP {
 			params[j].Value -= params[j].Grad * learningRate
 		}
 		upEnd := time.Now().UnixMilli()
-		fmt.Printf("Update Time = %f\n", float64(upEnd-upStart)/1000)
+		// fmt.Printf("Update Time = %f\n", float64(upEnd-upStart)/1000)
 
-		loss.Clear()
+		// loss.Clear()
+		loss = nil
 
 		totalTime += float64((upEnd + bpEnd + fpEnd) - (upStart + bpStart + fpStart))
-		fmt.Printf("Epoch %d completed in %f. [%f per epoch].\n\n", epoch, float64((upEnd+bpEnd+fpEnd)-(upStart+bpStart+fpStart))/1000, totalTime/float64(epoch+1))
+		if epoch%100 == 0 {
+			fmt.Printf("Epoch %d completed in %f. [%f per epoch].\n\n", epoch, float64((upEnd+bpEnd+fpEnd)-(upStart+bpStart+fpStart))/1000, totalTime/float64(epoch+1))
+		}
 
+		fmt.Println(ng.IdGen.Load())
 	}
 
 	return mlp

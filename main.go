@@ -3,12 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
-	"gograd/trainsets/iris"
-	"log"
+	"gograd/ng"
+	"gograd/nn"
+	"gograd/nn/layers"
 	"math/rand"
-	"os"
 	"runtime"
-	"runtime/pprof"
 )
 
 var memprofile = flag.String("memprofile", "", "write memory profile to file")
@@ -52,21 +51,27 @@ func main() {
 
 	rand.Seed(1337)
 
-	iris.LoadAndSplitDataset()
-	printMemStats()
-	mlp := iris.TrainIris(1000, 100, 0.01)
-	if *memprofile != "" {
-		f, err := os.Create(*memprofile)
-		if err != nil {
-			log.Fatal(err)
-		}
-		pprof.WriteHeapProfile(f)
-		f.Close()
-	}
+	mlp := nn.NewMLP(1, []nn.Layer{
+		layers.Linear(1, 2),
+	})
+	mlp.Call([]*ng.Value{NewValueLiteral(10)})
+
+	// iris.LoadAndSplitDataset()
+	// printMemStats()
 	// mlp := iris.TrainIris(1000, 100, 0.01)
-	printMemStats()
-	iris.TestIris(mlp)
-	printMemStats()
+	// if *memprofile !=
+	// 	"" {
+	// 	f, err := os.Create(*memprofile)
+	// 	if err != nil {
+	// 		log.Fatal(err)
+	// 	}
+	// 	pprof.WriteHeapProfile(f)
+	// 	f.Close()
+	// }
+	// // mlp := iris.TrainIris(1000, 100, 0.01)
+	// printMemStats()
+	// iris.TestIris(mlp)
+	// printMemStats()
 
 	// mnist.LoadDataset()
 	// mlp2 := mnist.TrainMNIST(100, 1300, 0.5)
