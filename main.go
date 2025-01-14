@@ -3,11 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
-	"gograd/ng"
-	"gograd/nn"
-	"gograd/nn/layers"
+	"gograd/trainsets/iris"
+	"log"
 	"math/rand"
+	"os"
 	"runtime"
+	"runtime/pprof"
 )
 
 var memprofile = flag.String("memprofile", "", "write memory profile to file")
@@ -46,32 +47,51 @@ Total Alloc = 1015 MB
 AFTER:
 */
 
+/*
+BEFORE POOLING:
+Params:
+Seed = 1337
+Train = 1000, 100, 0.01
+
+144 out of 150 correct.  96
+Train accuracy: [97] of [100] = 0.97
+Test accuracy: [47] of [50] = 0.94
+# params: 291
+Alloc = 8778 MB
+Total Alloc = 11745 MB
+
+*/
+
 func main() {
 	flag.Parse()
 
 	rand.Seed(1337)
 
-	mlp := nn.NewMLP(1, []nn.Layer{
-		layers.Linear(1, 2),
-	})
-	mlp.Call([]*ng.Value{NewValueLiteral(10)})
+	// inputs := []*ng.Value{ng.NewValueLiteral(10)}
 
-	// iris.LoadAndSplitDataset()
-	// printMemStats()
+	// mlp := nn.NewMLP(1, []nn.Layer{
+	// 	layers.Linear(1, 2),
+	// 	layers.Linear(2, 1),
+	// })
+	// out := mlp.Call(inputs)
+	// trace(out[0])
+
+	iris.LoadAndSplitDataset()
+	printMemStats()
+	mlp := iris.TrainIris(1000, 100, 0.01)
+	if *memprofile !=
+		"" {
+		f, err := os.Create(*memprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.WriteHeapProfile(f)
+		f.Close()
+	}
 	// mlp := iris.TrainIris(1000, 100, 0.01)
-	// if *memprofile !=
-	// 	"" {
-	// 	f, err := os.Create(*memprofile)
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
-	// 	pprof.WriteHeapProfile(f)
-	// 	f.Close()
-	// }
-	// // mlp := iris.TrainIris(1000, 100, 0.01)
-	// printMemStats()
-	// iris.TestIris(mlp)
-	// printMemStats()
+	printMemStats()
+	iris.TestIris(mlp)
+	printMemStats()
 
 	// mnist.LoadDataset()
 	// mlp2 := mnist.TrainMNIST(100, 1300, 0.5)
