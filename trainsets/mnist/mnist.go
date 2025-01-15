@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"fmt"
 	"image/jpeg"
+	"log"
 	"math/rand"
 	"os"
 	"path/filepath"
+	"runtime"
+	"runtime/pprof"
 	"slices"
 	"time"
 
@@ -15,6 +18,18 @@ import (
 	"gograd/nn/layers"
 	lossfunctions "gograd/nn/loss_functions"
 )
+
+func printMemStats() {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	bToMb := func(b uint64) uint64 {
+		return b / 1024 / 1024
+	}
+
+	fmt.Printf("Alloc = %v MB\n", bToMb(m.Alloc))
+	fmt.Printf("Total Alloc = %v MB\n", bToMb(m.TotalAlloc))
+}
 
 var trainInputs [][]*ng.Value
 var trainOutputs []float64
@@ -27,10 +42,10 @@ func LoadDataset() {
 	for num := range 10 {
 		p := filepath.Join("trainingSet", fmt.Sprint(num))
 		entries, _ := os.ReadDir(p)
-		for _, entry := range entries {
-			// if ww > 5 {
-			// break
-			// }
+		for ww, entry := range entries {
+			if ww > 5 {
+				break
+			}
 
 			data, _ := os.ReadFile(filepath.Join(p, entry.Name()))
 			image, _ := jpeg.Decode(bytes.NewReader(data))
@@ -53,6 +68,7 @@ func LoadDataset() {
 	})
 
 	fmt.Printf("Dataset loaded. Number of files = %d.\n", len(trainInputs))
+	printMemStats()
 }
 
 func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLP {
@@ -71,6 +87,9 @@ func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLP {
 		// nn.NewLayer(512, 10, nn.Linear),
 	})
 	params := mlp.Parameters()
+	fmt.Println("Created MLP")
+	printMemStats()
+	ng.TValuePool.Mark()
 
 	totalTime := 0.0
 
@@ -119,15 +138,18 @@ func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLP {
 		loss.Clear()
 
 		totalTime += float64((upEnd + bpEnd + fpEnd) - (upStart + bpStart + fpStart))
+		fmt.Println()
+		fmt.Println(ng.TValuePool.GetCapacity())
+		printMemStats()
+		fmt.Println()
 		fmt.Printf("Epoch %d completed in %f. [%f per epoch].\n\n", epoch, float64((upEnd+bpEnd+fpEnd)-(upStart+bpStart+fpStart))/1000, totalTime/float64(epoch+1))
-
 		// if *memprofile != "" {
-		// 	f, err := os.Create(*memprofile)
-		// 	if err != nil {
-		// 		log.Fatal(err)
-		// 	}
-		// 	pprof.WriteHeapProfile(f)
-		// 	f.Close()
+		f, err := os.Create("mnist.prof")
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.WriteHeapProfile(f)
+		f.Close()
 		// 	break
 		// }
 	}

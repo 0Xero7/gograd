@@ -8,11 +8,24 @@ import (
 	lossfunctions "gograd/nn/loss_functions"
 	"math/rand"
 	"os"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 )
+
+func printMemStats() {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	bToMb := func(b uint64) uint64 {
+		return b / 1024 / 1024
+	}
+
+	fmt.Printf("Alloc = %v MB\n", bToMb(m.Alloc))
+	fmt.Printf("Total Alloc = %v MB\n", bToMb(m.TotalAlloc))
+}
 
 var trainInputs [][]*ng.Value
 var trainOutputs []float64
@@ -85,6 +98,7 @@ func TrainIris(iterations, batchSize int, learningRate float64) *nn.MLP {
 		layers.Linear(32, 3),
 	})
 	params := mlp.Parameters()
+	ng.TValuePool.Mark()
 
 	totalTime := 0.0
 
@@ -135,10 +149,13 @@ func TrainIris(iterations, batchSize int, learningRate float64) *nn.MLP {
 
 		totalTime += float64((upEnd + bpEnd + fpEnd) - (upStart + bpStart + fpStart))
 		if epoch%100 == 0 {
+			fmt.Println(ng.TValuePool.GetCapacity())
+			printMemStats()
 			fmt.Printf("Epoch %d completed in %f. [%f per epoch].\n\n", epoch, float64((upEnd+bpEnd+fpEnd)-(upStart+bpStart+fpStart))/1000, totalTime/float64(epoch+1))
 		}
 
-		fmt.Println(ng.IdGen.Load())
+		// fmt.Println(ng.IdGen.Load())
+		ng.TValuePool.Reset()
 	}
 
 	return mlp

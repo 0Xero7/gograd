@@ -1,14 +1,18 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"flag"
 	"fmt"
-	"gograd/trainsets/iris"
-	"log"
+	"gograd/ng"
+	"gograd/trainsets/mnist"
+	"image/jpeg"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"runtime"
-	"runtime/pprof"
+	"strings"
 )
 
 var memprofile = flag.String("memprofile", "", "write memory profile to file")
@@ -67,6 +71,23 @@ func main() {
 
 	rand.Seed(1337)
 
+	// pool := ng.NewValuePool[int](func(index int) *int {
+	// 	temp := 1337
+	// 	return &temp
+	// })
+
+	// for i := range 10 {
+	// 	v := pool.Get()
+	// 	*v = i
+	// 	fmt.Println(*v)
+	// }
+
+	// pool.Reset()
+	// for range 10 {
+	// 	v := pool.Get()
+	// 	fmt.Println(*v)
+	// }
+
 	// inputs := []*ng.Value{ng.NewValueLiteral(10)}
 
 	// mlp := nn.NewMLP(1, []nn.Layer{
@@ -76,43 +97,43 @@ func main() {
 	// out := mlp.Call(inputs)
 	// trace(out[0])
 
-	iris.LoadAndSplitDataset()
-	printMemStats()
-	mlp := iris.TrainIris(1000, 100, 0.01)
-	if *memprofile !=
-		"" {
-		f, err := os.Create(*memprofile)
-		if err != nil {
-			log.Fatal(err)
-		}
-		pprof.WriteHeapProfile(f)
-		f.Close()
-	}
+	// iris.LoadAndSplitDataset()
+	// printMemStats()
 	// mlp := iris.TrainIris(1000, 100, 0.01)
-	printMemStats()
-	iris.TestIris(mlp)
-	printMemStats()
-
-	// mnist.LoadDataset()
-	// mlp2 := mnist.TrainMNIST(100, 1300, 0.5)
-	// mnist.TestMNIST(mlp2)
-
-	// reader := bufio.NewReader(os.Stdin)
-	// for {
-	// 	fmt.Println("Image Id: ")
-	// 	img, _ := reader.ReadString('\n')
-	// 	s := strings.TrimSpace(img)
-	// 	path := filepath.Join("testSet", "img_"+s+".jpg")
-	// 	data, _ := os.ReadFile(path)
-	// 	image, _ := jpeg.Decode(bytes.NewReader(data))
-	// 	dataValues := []*ng.Value{}
-	// 	for y := range 28 {
-	// 		for x := range 28 {
-	// 			r, _, _, _ := image.At(x, y).RGBA()
-	// 			dataValues = append(dataValues, ng.NewValueLiteral(float64(r)))
-	// 		}
+	// if *memprofile !=
+	// 	"" {
+	// 	f, err := os.Create(*memprofile)
+	// 	if err != nil {
+	// 		log.Fatal(err)
 	// 	}
-
-	// 	fmt.Println(">", mlp.Predict(dataValues))
+	// 	pprof.WriteHeapProfile(f)
+	// 	f.Close()
 	// }
+	// // mlp := iris.TrainIris(1000, 100, 0.01)
+	// printMemStats()
+	// iris.TestIris(mlp)
+	// printMemStats()
+
+	mnist.LoadDataset()
+	mlp2 := mnist.TrainMNIST(100, 32, 0.1)
+	mnist.TestMNIST(mlp2)
+
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		fmt.Println("Image Id: ")
+		img, _ := reader.ReadString('\n')
+		s := strings.TrimSpace(img)
+		path := filepath.Join("testSet", "img_"+s+".jpg")
+		data, _ := os.ReadFile(path)
+		image, _ := jpeg.Decode(bytes.NewReader(data))
+		dataValues := []*ng.Value{}
+		for y := range 28 {
+			for x := range 28 {
+				r, _, _, _ := image.At(x, y).RGBA()
+				dataValues = append(dataValues, ng.NewValueLiteral(float64(r)))
+			}
+		}
+
+		fmt.Println(">", mlp2.Predict(dataValues))
+	}
 }

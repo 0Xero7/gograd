@@ -17,11 +17,15 @@ type Value struct {
 	Children      []*Value
 	// Label         string
 
-	Parents map[int]*Value
+	// Parents map[int]*Value
 }
 
+var TValuePool ValuePool[Value] = NewValuePool(func(index int) *Value {
+	return new(Value)
+})
+
 func NewValueLiteral(value float64) *Value {
-	v := new(Value)
+	v := TValuePool.Get() //new(Value)
 	v.Id = int(IdGen.Load())
 	IdGen.Add(1)
 	// v.Label = fmt.Sprint(v.Id)
@@ -29,13 +33,13 @@ func NewValueLiteral(value float64) *Value {
 	v.Value = value
 	v.Grad = 0
 	v.Op = "X"
-	v.Children = []*Value{}
-	v.Parents = make(map[int]*Value)
+	v.Children = make([]*Value, 0)
+	// v.Parents = make(map[int]*Value)
 	return v
 }
 
 func NewValue(value float64, op string, children []*Value) *Value {
-	v := new(Value)
+	v := TValuePool.Get() //new(Value)
 	v.Id = int(IdGen.Load())
 	IdGen.Add(1)
 	// v.Label = fmt.Sprint(v.Id)
@@ -44,7 +48,7 @@ func NewValue(value float64, op string, children []*Value) *Value {
 	v.Grad = 0
 	v.Op = op
 	v.Children = children
-	v.Parents = make(map[int]*Value)
+	// v.Parents = make(map[int]*Value)
 
 	// seen := make(map[*Value]bool)
 	// for _, val := range children {
@@ -76,20 +80,20 @@ func (v *Value) Negate() *Value {
 }
 
 func (v *Value) Add(other *Value) *Value {
-	t, found := v.Parents[other.Id]
-	if !found {
-		t = NewValue(v.Value+other.Value, "+", []*Value{v, other})
-		v.Parents[other.Id] = t
-		other.Parents[v.Id] = t
+	// t, found := v.Parents[other.Id]
+	// if !found {
+	t := NewValue(v.Value+other.Value, "+", []*Value{v, other})
+	// v.Parents[other.Id] = t
+	// other.Parents[v.Id] = t
 
-		t.LocalBackward = func() {
-			v.Grad += t.Grad
-			other.Grad += t.Grad
-		}
-	} else {
-		t.Value = v.Value + other.Value
-		t.Grad = 0
+	t.LocalBackward = func() {
+		v.Grad += t.Grad
+		other.Grad += t.Grad
 	}
+	// } else {
+	// 	t.Value = v.Value + other.Value
+	// 	t.Grad = 0
+	// }
 	// v.CachedNode = nil
 	// other.CachedNode = nil
 	// t := NewValue(v.Value+other.Value, "+", []*Value{v, other})
@@ -104,19 +108,19 @@ func (v *Value) Sub(other *Value) *Value {
 }
 
 func (v *Value) Mul(other *Value) *Value {
-	t, found := v.Parents[other.Id]
-	if !found {
-		t = NewValue(v.Value*other.Value, "*", []*Value{v, other})
-		t.LocalBackward = func() {
-			v.Grad += t.Grad * other.Value
-			other.Grad += t.Grad * v.Value
-		}
-		v.Parents[other.Id] = t
-		other.Parents[v.Id] = t
-	} else {
-		t.Value = v.Value * other.Value
-		t.Grad = 0
+	// t, found := v.Parents[other.Id]
+	// if !found {
+	t := NewValue(v.Value*other.Value, "*", []*Value{v, other})
+	t.LocalBackward = func() {
+		v.Grad += t.Grad * other.Value
+		other.Grad += t.Grad * v.Value
 	}
+	// 	v.Parents[other.Id] = t
+	// 	other.Parents[v.Id] = t
+	// } else {
+	// 	t.Value = v.Value * other.Value
+	// 	t.Grad = 0
+	// }
 	// t := NewValue(v.Value*other.Value, "*", []*Value{v, other})
 	// t.Grad = 0
 
