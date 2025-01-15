@@ -15,6 +15,7 @@ type ActivationLayer struct {
 // Constructor
 func ReLu(dims int) nn.Layer {
 	layer := new(ActivationLayer)
+	layer.CachedOutputs = make([]*ng.Value, dims)
 	layer.Dim = dims
 	layer.Type = relu
 	return layer
@@ -23,6 +24,7 @@ func ReLu(dims int) nn.Layer {
 // Constructor
 func Tanh(dims int) nn.Layer {
 	layer := new(ActivationLayer)
+	layer.CachedOutputs = make([]*ng.Value, dims)
 	layer.Dim = dims
 	layer.Type = tanh
 	return layer
@@ -31,6 +33,7 @@ func Tanh(dims int) nn.Layer {
 // Constructor
 func Sigmoid(dims int) nn.Layer {
 	layer := new(ActivationLayer)
+	layer.CachedOutputs = make([]*ng.Value, dims)
 	layer.Dim = dims
 	layer.Type = sigmoid
 	return layer
@@ -41,9 +44,6 @@ func (l *ActivationLayer) Call(inputs []*ng.Value) []*ng.Value {
 		panic("Input dimensions don't match neuron dimensions")
 	}
 
-	// if len(l.CachedOutputs) != len(inputs) {
-	l.CachedOutputs = make([]*ng.Value, l.Dim)
-	// }
 	for i := range l.Dim {
 		switch l.Type {
 		case relu:

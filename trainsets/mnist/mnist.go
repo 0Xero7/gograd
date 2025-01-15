@@ -83,6 +83,7 @@ func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLP {
 		layers.ReLu(32),
 
 		layers.Linear(32, 10, &initializers.SimpleInitializer{}),
+		// layers.SoftMax(10),
 	})
 	params := mlp.Parameters()
 	fmt.Println("Created MLP")
@@ -92,6 +93,9 @@ func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLP {
 	adam := optimizers.NewAdam(learningRate)
 
 	totalTime := 0.0
+
+	// probabilities := make([][]*ng.Value, batchSize)
+	// classes := make([]int, batchSize)
 
 	for epoch := range iterations {
 		batch := make([]int, 0)
@@ -107,31 +111,41 @@ func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLP {
 		fpStart := time.Now().UnixMilli()
 		loss := ng.NewValueLiteral(0)
 		for index := range batchSize {
-			results := mlp.Call(trainInputs[index])
-			target := trainOutputs[index]
+			results := mlp.Call(trainInputs[batch[index]])
+			target := trainOutputs[batch[index]]
 
 			lossItem := lossfunctions.SoftmaxCrossEntropy(results, int(target))
 			loss = loss.Add(lossItem)
 		}
 		loss = loss.Div(ng.NewValueLiteral(float64(batchSize)))
+
+		// loss := ng.NewValueLiteral(0)
+
+		// for index := range batchSize {
+		// 	probabilities[index] = mlp.Call(trainInputs[batch[index]])
+		// 	classes[index] = int(trainOutputs[batch[index]])
+
+		// 	// lossItem := lossfunctions.SoftmaxCrossEntropy(results, int(target))
+		// 	// loss = loss.Add(lossItem)
+		// }
+		// loss := lossfunctions.BatchCrossEntropy(probabilities, classes)
+		// loss = loss.Div(ng.NewValueLiteral(float64(batchSize)))
+
 		fpEnd := time.Now().UnixMilli()
 		fmt.Printf("Epoch = %d, Loss = %.12f\n", epoch, loss.Value)
 		fmt.Printf("Forward Pass Time = %f\n", float64(fpEnd-fpStart)/1000.0)
 
 		// Backward Pass
 		bpStart := time.Now().UnixMilli()
-		for _, param := range params {
-			param.Grad = 0
-		}
+		// for _, param := range params {
+		// 	param.Grad = 0
+		// }
 		loss.Backward()
 		bpEnd := time.Now().UnixMilli()
 		fmt.Printf("Backward Pass Time = %f\n", float64(bpEnd-bpStart)/1000)
 
 		// Update
 		upStart := time.Now().UnixMilli()
-		// for j := range params {
-		// 	params[j].Value -= params[j].Grad * learningRate
-		// }
 		adam.Step(params)
 		upEnd := time.Now().UnixMilli()
 		fmt.Printf("Update Time = %f\n", float64(upEnd-upStart)/1000)

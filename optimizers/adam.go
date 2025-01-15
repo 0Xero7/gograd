@@ -29,9 +29,9 @@ func (a *Adam) Step(params []*ng.Value) {
 	a.t++
 
 	for _, param := range params {
-		// if param.Grad == nil {
-		// 	continue
-		// }
+		if param == nil {
+			continue
+		}
 
 		grad := param.Grad
 

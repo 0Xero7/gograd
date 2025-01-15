@@ -234,8 +234,6 @@ func dfs(root *Value, visited *map[int]bool, collect *[]*Value) {
 var path []*Value = make([]*Value, 0)
 
 func (v *Value) Backward() {
-	v.Grad = 1.0
-
 	if len(path) == 0 {
 		visited := make(map[int]bool)
 		collect := make([]*Value, 0)
@@ -245,6 +243,11 @@ func (v *Value) Backward() {
 		}
 	}
 
+	for i := range path {
+		path[i].Grad = 0.0
+	}
+
+	v.Grad = 1.0
 	for i := range path {
 		path[i].PerformBackward()
 	}
