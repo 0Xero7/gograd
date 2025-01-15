@@ -58,7 +58,7 @@ func (l *ActivationLayer) Call(inputs []*ng.Value) []*ng.Value {
 }
 
 func (l *ActivationLayer) Parameters() []*ng.Value {
-	return l.CachedOutputs
+	return []*ng.Value{}
 }
 
 func (l *ActivationLayer) FanOut() int {

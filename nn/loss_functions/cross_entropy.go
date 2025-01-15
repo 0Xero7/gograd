@@ -1,6 +1,8 @@
 package lossfunctions
 
-import "gograd/ng"
+import (
+	"gograd/ng"
+)
 
 func CrossEntropy(probabilities []*ng.Value, class int) *ng.Value {
 	return probabilities[class].Log().Negate()

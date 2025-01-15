@@ -43,7 +43,7 @@ func (s *SoftMaxLayer) Call(inputs []*ng.Value) []*ng.Value {
 }
 
 func (s *SoftMaxLayer) Parameters() []*ng.Value {
-	return s.CachedOutputs
+	return []*ng.Value{}
 }
 
 func (s *SoftMaxLayer) FanOut() int {

@@ -83,7 +83,7 @@ func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLP {
 		layers.ReLu(32),
 
 		layers.Linear(32, 10, &initializers.SimpleInitializer{}),
-		// layers.SoftMax(10),
+		layers.SoftMax(10),
 	})
 	params := mlp.Parameters()
 	fmt.Println("Created MLP")
@@ -93,9 +93,6 @@ func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLP {
 	adam := optimizers.NewAdam(learningRate)
 
 	totalTime := 0.0
-
-	// probabilities := make([][]*ng.Value, batchSize)
-	// classes := make([]int, batchSize)
 
 	for epoch := range iterations {
 		batch := make([]int, 0)
@@ -109,26 +106,30 @@ func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLP {
 
 		// Forward Pass
 		fpStart := time.Now().UnixMilli()
-		loss := ng.NewValueLiteral(0)
-		for index := range batchSize {
-			results := mlp.Call(trainInputs[batch[index]])
-			target := trainOutputs[batch[index]]
+		// loss := ng.NewValueLiteral(0)
+		// for index := range batchSize {
+		// 	results := mlp.Call(trainInputs[batch[index]])
+		// 	target := trainOutputs[batch[index]]
 
-			lossItem := lossfunctions.SoftmaxCrossEntropy(results, int(target))
-			loss = loss.Add(lossItem)
-		}
-		loss = loss.Div(ng.NewValueLiteral(float64(batchSize)))
+		// 	lossItem := lossfunctions.SoftmaxCrossEntropy(results, int(target))
+		// 	loss = loss.Add(lossItem)
+		// }
+		// loss = loss.Div(ng.NewValueLiteral(float64(batchSize)))
 
 		// loss := ng.NewValueLiteral(0)
 
-		// for index := range batchSize {
-		// 	probabilities[index] = mlp.Call(trainInputs[batch[index]])
-		// 	classes[index] = int(trainOutputs[batch[index]])
+		probabilities := make([][]*ng.Value, batchSize)
+		classes := make([]int, batchSize)
+		for index := range batchSize {
+			probabilities[index] = mlp.Call(trainInputs[batch[index]])
+			fmt.Println(index, probabilities[index])
+			classes[index] = int(trainOutputs[batch[index]])
 
-		// 	// lossItem := lossfunctions.SoftmaxCrossEntropy(results, int(target))
-		// 	// loss = loss.Add(lossItem)
-		// }
-		// loss := lossfunctions.BatchCrossEntropy(probabilities, classes)
+			// lossItem := lossfunctions.SoftmaxCrossEntropy(results, int(target))
+			// loss = loss.Add(lossItem)
+		}
+		fmt.Println(probabilities)
+		loss := lossfunctions.BatchCrossEntropy(probabilities, classes)
 		// loss = loss.Div(ng.NewValueLiteral(float64(batchSize)))
 
 		fpEnd := time.Now().UnixMilli()
