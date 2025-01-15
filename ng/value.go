@@ -94,27 +94,14 @@ func (v *Value) Negate() *Value {
 }
 
 func (v *Value) Add(other *Value) *Value {
-	// t, found := v.Parents[other.Id]
-	// if !found {
 	t := NewValue(v.Value+other.Value, "+")
 	t.Children.Append(v)
 	t.Children.Append(other)
-	// v.Parents[other.Id] = t
-	// other.Parents[v.Id] = t
 
 	t.LocalBackward = func() {
 		v.Grad += t.Grad
 		other.Grad += t.Grad
 	}
-	// } else {
-	// 	t.Value = v.Value + other.Value
-	// 	t.Grad = 0
-	// }
-	// v.CachedNode = nil
-	// other.CachedNode = nil
-	// t := NewValue(v.Value+other.Value, "+", []*Value{v, other})
-	// v.CachedNode = t
-	// t.Grad = 0
 
 	return t
 }
@@ -124,8 +111,6 @@ func (v *Value) Sub(other *Value) *Value {
 }
 
 func (v *Value) Mul(other *Value) *Value {
-	// t, found := v.Parents[other.Id]
-	// if !found {
 	t := NewValue(v.Value*other.Value, "*")
 	t.Children.Append(v)
 	t.Children.Append(other)
@@ -134,14 +119,24 @@ func (v *Value) Mul(other *Value) *Value {
 		v.Grad += t.Grad * other.Value
 		other.Grad += t.Grad * v.Value
 	}
-	// 	v.Parents[other.Id] = t
-	// 	other.Parents[v.Id] = t
-	// } else {
-	// 	t.Value = v.Value * other.Value
-	// 	t.Grad = 0
-	// }
-	// t := NewValue(v.Value*other.Value, "*", []*Value{v, other})
-	// t.Grad = 0
+
+	return t
+}
+
+func (v *Value) Max(other *Value) *Value {
+	t := NewValue(math.Max(v.Value, other.Value), "max")
+	t.Children.Append(v)
+	t.Children.Append(other)
+
+	t.LocalBackward = func() {
+		if v.Value > other.Value {
+			v.Grad += t.Grad
+			other.Grad += 0
+		} else {
+			v.Grad += 0
+			other.Grad += t.Grad
+		}
+	}
 
 	return t
 }
@@ -237,14 +232,14 @@ func dfs(root *Value, visited *map[int]bool, collect *[]*Value) {
 }
 
 func (v *Value) Backward() {
-	v.Grad = 1.0
 	visited := make(map[int]bool)
 	collect := make([]*Value, 0)
 
 	dfs(v, &visited, &collect)
-	// for i := range collect {
-	// 	collect[i].Grad = 0.0
-	// }
+	for i := range collect {
+		collect[i].Grad = 0.0
+	}
+	v.Grad = 1.0
 	for i := len(collect) - 1; i >= 0; i-- {
 		collect[i].PerformBackward()
 	}

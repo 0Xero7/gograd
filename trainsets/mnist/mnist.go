@@ -72,16 +72,16 @@ func LoadDataset() {
 
 func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLP {
 	mlp := nn.NewMLP(784, []nn.Layer{
-		layers.Linear(784, 128, &initializers.XavierInitializer{}),
-		layers.Sigmoid(128),
+		layers.Linear(784, 128, &initializers.HeInitializer{}),
+		layers.ReLu(128),
 
-		// layers.Linear(128, 64, &initializers.XavierInitializer{}),
-		// layers.Sigmoid(64),
+		layers.Linear(128, 64, &initializers.HeInitializer{}),
+		layers.ReLu(64),
 
-		// layers.Linear(64, 32, &initializers.XavierInitializer{}),
-		// layers.Sigmoid(32),
+		layers.Linear(64, 32, &initializers.HeInitializer{}),
+		layers.ReLu(32),
 
-		layers.Linear(128, 10, &initializers.SimpleInitializer{}),
+		layers.Linear(32, 10, &initializers.SimpleInitializer{}),
 	})
 	params := mlp.Parameters()
 	fmt.Println("Created MLP")

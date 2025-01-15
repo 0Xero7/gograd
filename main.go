@@ -108,7 +108,7 @@ func main() {
 	// printMemStats()
 
 	mnist.LoadDataset()
-	mlp2 := mnist.TrainMNIST(100, 32, 0.1)
+	mlp2 := mnist.TrainMNIST(50, 64, 0.0001)
 	mnist.TestMNIST(mlp2)
 
 	// reader := bufio.NewReader(os.Stdin)

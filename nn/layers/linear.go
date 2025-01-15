@@ -4,6 +4,7 @@ import (
 	"gograd/ng"
 	"gograd/nn"
 	"gograd/nn/initializers"
+	"math"
 )
 
 type LinearLayer struct {
@@ -19,11 +20,12 @@ func Linear(neuronDim int, outDim int, init initializers.Initializer) nn.Layer {
 	layer.NeuronDim = neuronDim
 	layer.Neurons = make([]*nn.Neuron, outDim)
 	layer.OutDim = outDim
+	factor := 1.0 / math.Sqrt(float64(neuronDim))
 
 	for i := range outDim {
 		layer.Neurons[i] = nn.NewNeuron(neuronDim)
 		for j := range layer.Neurons[i].Weights {
-			layer.Neurons[i].Weights[j] = ng.NewValueLiteral(init.Sample(neuronDim, outDim))
+			layer.Neurons[i].Weights[j] = ng.NewValueLiteral(init.Sample(neuronDim, outDim) * factor)
 		}
 	}
 	return layer
