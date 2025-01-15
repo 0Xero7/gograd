@@ -14,14 +14,16 @@ type Value struct {
 	Grad          float64
 	LocalBackward func()
 	Op            string
-	Children      []*Value
+	Children      Children
 	// Label         string
 
 	// Parents map[int]*Value
 }
 
 var TValuePool ValuePool[Value] = NewValuePool(func(index int) *Value {
-	return new(Value)
+	r := new(Value)
+	r.Children.Clear()
+	return r
 })
 
 func NewValueLiteral(value float64) *Value {
@@ -33,12 +35,17 @@ func NewValueLiteral(value float64) *Value {
 	v.Value = value
 	v.Grad = 0
 	v.Op = "X"
-	v.Children = make([]*Value, 0)
+	v.Children.Clear()
+	// if v.Children == nil {
+	// 	v.Children = make([]*Value, 0)
+	// } else {
+	// 	v.Children = v.Children[0:0]
+	// }
 	// v.Parents = make(map[int]*Value)
 	return v
 }
 
-func NewValue(value float64, op string, children []*Value) *Value {
+func NewValue(value float64, op string) *Value {
 	v := TValuePool.Get() //new(Value)
 	v.Id = int(IdGen.Load())
 	IdGen.Add(1)
@@ -47,7 +54,12 @@ func NewValue(value float64, op string, children []*Value) *Value {
 	v.Value = value
 	v.Grad = 0
 	v.Op = op
-	v.Children = children
+	v.Children.Clear()
+	// if v.Children == nil {
+	// 	v.Children = make([]*Value, 0)
+	// } else {
+	// 	v.Children = v.Children[0:0]
+	// }
 	// v.Parents = make(map[int]*Value)
 
 	// seen := make(map[*Value]bool)
@@ -72,7 +84,9 @@ func (v *Value) String() string {
 }
 
 func (v *Value) Negate() *Value {
-	t := NewValue(-v.Value, "neg", []*Value{v})
+	t := NewValue(-v.Value, "neg")
+	t.Children.Append(v)
+
 	t.LocalBackward = func() {
 		v.Grad += -1.0 * t.Grad
 	}
@@ -82,7 +96,9 @@ func (v *Value) Negate() *Value {
 func (v *Value) Add(other *Value) *Value {
 	// t, found := v.Parents[other.Id]
 	// if !found {
-	t := NewValue(v.Value+other.Value, "+", []*Value{v, other})
+	t := NewValue(v.Value+other.Value, "+")
+	t.Children.Append(v)
+	t.Children.Append(other)
 	// v.Parents[other.Id] = t
 	// other.Parents[v.Id] = t
 
@@ -110,7 +126,10 @@ func (v *Value) Sub(other *Value) *Value {
 func (v *Value) Mul(other *Value) *Value {
 	// t, found := v.Parents[other.Id]
 	// if !found {
-	t := NewValue(v.Value*other.Value, "*", []*Value{v, other})
+	t := NewValue(v.Value*other.Value, "*")
+	t.Children.Append(v)
+	t.Children.Append(other)
+
 	t.LocalBackward = func() {
 		v.Grad += t.Grad * other.Value
 		other.Grad += t.Grad * v.Value
@@ -134,7 +153,9 @@ func (v *Value) Div(other *Value) *Value {
 func (v *Value) Log() *Value {
 	epsilon := 1e-7
 	safeValue := math.Max(v.Value, epsilon)
-	t := NewValue(math.Log(safeValue), "log", []*Value{v})
+	t := NewValue(math.Log(safeValue), "log")
+	t.Children.Append(v)
+
 	t.LocalBackward = func() {
 		v.Grad += (1.0 / safeValue) * t.Grad
 	}
@@ -142,7 +163,9 @@ func (v *Value) Log() *Value {
 }
 
 func (v *Value) Tanh() *Value {
-	t := NewValue(math.Tanh(v.Value), "tanh", []*Value{v})
+	t := NewValue(math.Tanh(v.Value), "tanh")
+	t.Children.Append(v)
+
 	t.LocalBackward = func() {
 		v.Grad += (1.0 - math.Pow(t.Value, 2.0)) * t.Grad
 	}
@@ -150,7 +173,9 @@ func (v *Value) Tanh() *Value {
 }
 
 func (v *Value) ReLu() *Value {
-	t := NewValue(max(0, v.Value), "relu", []*Value{v})
+	t := NewValue(max(0, v.Value), "relu")
+	t.Children.Append(v)
+
 	t.LocalBackward = func() {
 		grad := 0.0
 		if t.Value > 0 {
@@ -163,7 +188,9 @@ func (v *Value) ReLu() *Value {
 
 func (v *Value) Sigmoid() *Value {
 	val := 1.0 / (1.0 + math.Exp(-v.Value))
-	t := NewValue(val, "sigmoid", []*Value{v})
+	t := NewValue(val, "sigmoid")
+	t.Children.Append(v)
+
 	t.LocalBackward = func() {
 		v.Grad += (t.Value) * (1.0 - v.Value) * t.Grad
 	}
@@ -171,7 +198,9 @@ func (v *Value) Sigmoid() *Value {
 }
 
 func (v *Value) Exp() *Value {
-	t := NewValue(math.Exp(v.Value), "exp", []*Value{v})
+	t := NewValue(math.Exp(v.Value), "exp")
+	t.Children.Append(v)
+
 	t.LocalBackward = func() {
 		v.Grad += t.Value * t.Grad
 	}
@@ -179,7 +208,9 @@ func (v *Value) Exp() *Value {
 }
 
 func (v *Value) Pow(other float64) *Value {
-	t := NewValue(math.Pow(v.Value, other), "pow", []*Value{v})
+	t := NewValue(math.Pow(v.Value, other), "pow")
+	t.Children.Append(v)
+
 	t.LocalBackward = func() {
 		v.Grad += other * math.Pow(v.Value, other-1) * t.Grad
 	}
@@ -198,8 +229,9 @@ func dfs(root *Value, visited *map[int]bool, collect *[]*Value) {
 	}
 
 	(*visited)[root.Id] = true
-	for _, child := range root.Children {
-		dfs(child, visited, collect)
+	for i := 0; i < root.Children.Len(); i++ {
+		// for _, child := range root.Children {
+		dfs(root.Children.At(i), visited, collect)
 	}
 	*collect = append(*collect, root)
 }
@@ -222,7 +254,7 @@ func (v *Value) Backward() {
 }
 
 func (v *Value) ClearOldChildren() {
-	v.Children = nil
+	v.Children.Clear()
 	v.LocalBackward = nil
 }
 

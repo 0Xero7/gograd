@@ -58,5 +58,7 @@ func (mlp *MLP) Predict(input []*ng.Value) int {
 		}
 	}
 
+	ng.TValuePool.Reset()
+
 	return maxIdx
 }

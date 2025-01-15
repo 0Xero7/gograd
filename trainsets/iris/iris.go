@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"gograd/ng"
 	"gograd/nn"
+	"gograd/nn/initializers"
 	"gograd/nn/layers"
 	lossfunctions "gograd/nn/loss_functions"
 	"math/rand"
@@ -93,9 +94,9 @@ func LoadAndSplitDataset() {
 
 func TrainIris(iterations, batchSize int, learningRate float64) *nn.MLP {
 	mlp := nn.NewMLP(4, []nn.Layer{
-		layers.Linear(4, 32),
+		layers.Linear(4, 32, &initializers.SimpleInitializer{}),
 		layers.Tanh(32),
-		layers.Linear(32, 3),
+		layers.Linear(32, 3, &initializers.SimpleInitializer{}),
 	})
 	params := mlp.Parameters()
 	ng.TValuePool.Mark()
@@ -145,16 +146,16 @@ func TrainIris(iterations, batchSize int, learningRate float64) *nn.MLP {
 		// fmt.Printf("Update Time = %f\n", float64(upEnd-upStart)/1000)
 
 		// loss.Clear()
-		loss = nil
 
 		totalTime += float64((upEnd + bpEnd + fpEnd) - (upStart + bpStart + fpStart))
 		if epoch%100 == 0 {
 			fmt.Println(ng.TValuePool.GetCapacity())
 			printMemStats()
-			fmt.Printf("Epoch %d completed in %f. [%f per epoch].\n\n", epoch, float64((upEnd+bpEnd+fpEnd)-(upStart+bpStart+fpStart))/1000, totalTime/float64(epoch+1))
+			fmt.Printf("Epoch %d completed in %f. [%f per epoch] Loss = %.4f.\n\n", epoch, float64((upEnd+bpEnd+fpEnd)-(upStart+bpStart+fpStart))/1000, totalTime/float64(epoch+1), loss.Value)
 		}
 
 		// fmt.Println(ng.IdGen.Load())
+		loss = nil
 		ng.TValuePool.Reset()
 	}
 

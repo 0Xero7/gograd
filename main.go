@@ -1,18 +1,11 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"flag"
 	"fmt"
-	"gograd/ng"
 	"gograd/trainsets/mnist"
-	"image/jpeg"
 	"math/rand"
-	"os"
-	"path/filepath"
 	"runtime"
-	"strings"
 )
 
 var memprofile = flag.String("memprofile", "", "write memory profile to file")
@@ -118,22 +111,22 @@ func main() {
 	mlp2 := mnist.TrainMNIST(100, 32, 0.1)
 	mnist.TestMNIST(mlp2)
 
-	reader := bufio.NewReader(os.Stdin)
-	for {
-		fmt.Println("Image Id: ")
-		img, _ := reader.ReadString('\n')
-		s := strings.TrimSpace(img)
-		path := filepath.Join("testSet", "img_"+s+".jpg")
-		data, _ := os.ReadFile(path)
-		image, _ := jpeg.Decode(bytes.NewReader(data))
-		dataValues := []*ng.Value{}
-		for y := range 28 {
-			for x := range 28 {
-				r, _, _, _ := image.At(x, y).RGBA()
-				dataValues = append(dataValues, ng.NewValueLiteral(float64(r)))
-			}
-		}
+	// reader := bufio.NewReader(os.Stdin)
+	// for {
+	// 	fmt.Println("Image Id: ")
+	// 	img, _ := reader.ReadString('\n')
+	// 	s := strings.TrimSpace(img)
+	// 	path := filepath.Join("testSet", "img_"+s+".jpg")
+	// 	data, _ := os.ReadFile(path)
+	// 	image, _ := jpeg.Decode(bytes.NewReader(data))
+	// 	dataValues := []*ng.Value{}
+	// 	for y := range 28 {
+	// 		for x := range 28 {
+	// 			r, _, _, _ := image.At(x, y).RGBA()
+	// 			dataValues = append(dataValues, ng.NewValueLiteral(float64(r)))
+	// 		}
+	// 	}
 
-		fmt.Println(">", mlp2.Predict(dataValues))
-	}
+	// 	fmt.Println(">", mlp2.Predict(dataValues))
+	// }
 }

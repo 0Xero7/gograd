@@ -4,17 +4,16 @@ import (
 	"bytes"
 	"fmt"
 	"image/jpeg"
-	"log"
 	"math/rand"
 	"os"
 	"path/filepath"
 	"runtime"
-	"runtime/pprof"
 	"slices"
 	"time"
 
 	"gograd/ng"
 	"gograd/nn"
+	"gograd/nn/initializers"
 	"gograd/nn/layers"
 	lossfunctions "gograd/nn/loss_functions"
 )
@@ -42,10 +41,10 @@ func LoadDataset() {
 	for num := range 10 {
 		p := filepath.Join("trainingSet", fmt.Sprint(num))
 		entries, _ := os.ReadDir(p)
-		for ww, entry := range entries {
-			if ww > 5 {
-				break
-			}
+		for _, entry := range entries {
+			// if ww > 5 {
+			// 	break
+			// }
 
 			data, _ := os.ReadFile(filepath.Join(p, entry.Name()))
 			image, _ := jpeg.Decode(bytes.NewReader(data))
@@ -73,18 +72,16 @@ func LoadDataset() {
 
 func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLP {
 	mlp := nn.NewMLP(784, []nn.Layer{
-		layers.Linear(784, 128),
-		layers.ReLu(128),
+		layers.Linear(784, 128, &initializers.XavierInitializer{}),
+		layers.Sigmoid(128),
 
-		layers.Linear(128, 64),
-		layers.Sigmoid(64),
+		// layers.Linear(128, 64, &initializers.XavierInitializer{}),
+		// layers.Sigmoid(64),
 
-		layers.Linear(64, 32),
-		layers.Sigmoid(32),
+		// layers.Linear(64, 32, &initializers.XavierInitializer{}),
+		// layers.Sigmoid(32),
 
-		layers.Linear(32, 10),
-		// nn.NewLayer(512, 256, nn.ReLu),
-		// nn.NewLayer(512, 10, nn.Linear),
+		layers.Linear(128, 10, &initializers.SimpleInitializer{}),
 	})
 	params := mlp.Parameters()
 	fmt.Println("Created MLP")
@@ -138,20 +135,20 @@ func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLP {
 		loss.Clear()
 
 		totalTime += float64((upEnd + bpEnd + fpEnd) - (upStart + bpStart + fpStart))
-		fmt.Println()
-		fmt.Println(ng.TValuePool.GetCapacity())
-		printMemStats()
-		fmt.Println()
+		// fmt.Println()
+		// fmt.Println(ng.TValuePool.GetCapacity())
+		// printMemStats()
+		// fmt.Println()
 		fmt.Printf("Epoch %d completed in %f. [%f per epoch].\n\n", epoch, float64((upEnd+bpEnd+fpEnd)-(upStart+bpStart+fpStart))/1000, totalTime/float64(epoch+1))
-		// if *memprofile != "" {
-		f, err := os.Create("mnist.prof")
-		if err != nil {
-			log.Fatal(err)
-		}
-		pprof.WriteHeapProfile(f)
-		f.Close()
-		// 	break
+
+		// f, err := os.Create("mnist.prof")
+		// if err != nil {
+		// 	log.Fatal(err)
 		// }
+		// pprof.WriteHeapProfile(f)
+		// f.Close()
+
+		ng.TValuePool.Reset()
 	}
 
 	return mlp

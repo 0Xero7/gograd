@@ -56,7 +56,7 @@ func trace(root *ng.Value) {
 		}
 		nodes[v] = node
 
-		if len(v.Children) > 0 && v.Op != "X" {
+		if v.Children.Len() > 0 && v.Op != "X" {
 			// Create operation node with circle shape
 			opNode, err := graph.CreateNodeByName(fmt.Sprintf("op_%s", getNodeID(v)))
 			if err != nil {
@@ -77,8 +77,8 @@ func trace(root *ng.Value) {
 			edge.SetPenWidth(1.5)
 
 			// Connect children to operation node with visible edges
-			for _, child := range v.Children {
-				childNode := buildGraph(child)
+			for i := 0; i < v.Children.Len(); i++ {
+				childNode := buildGraph(v.Children.At(i))
 				edge, err := graph.CreateEdgeByName("", childNode, opNode)
 				edge.SetStyle(cgraph.BoldEdgeStyle)
 				if err != nil {

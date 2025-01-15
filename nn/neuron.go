@@ -2,7 +2,6 @@ package nn
 
 import (
 	"gograd/ng"
-	"math/rand"
 )
 
 type Activation int
@@ -25,15 +24,15 @@ func NewNeuron(dim int) *Neuron {
 	n := new(Neuron)
 	n.Dimension = dim
 	n.Weights = make([]*ng.Value, dim)
-	for i := range n.Weights {
-		// if activation != ReLu {
-		n.Weights[i] = ng.NewValueLiteral((rand.Float64() - 0.5) * 2)
-		// } else {
-		// 	scale := math.Sqrt(2.0 / float64(dim))
-		// 	n.Weights[i] = ng.NewValueLiteral((rand.Float64()*2 - 1) * scale)
-		// }
-	}
-	n.Bias = ng.NewValueLiteral((rand.Float64() - 0.5) * 2)
+	// for i := range n.Weights {
+	// if activation != ReLu {
+	// n.Weights[i] = ng.NewValueLiteral((rand.Float64() - 0.5) * 2)
+	// } else {
+	// 	scale := math.Sqrt(2.0 / float64(dim))
+	// 	n.Weights[i] = ng.NewValueLiteral((rand.Float64()*2 - 1) * scale)
+	// }
+	// }
+	n.Bias = ng.NewValueLiteral(0) //(rand.Float64() - 0.5) * 2)
 	return n
 }
 
