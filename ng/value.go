@@ -231,21 +231,23 @@ func dfs(root *Value, visited *map[int]bool, collect *[]*Value) {
 	*collect = append(*collect, root)
 }
 
+var path []*Value = make([]*Value, 0)
+
 func (v *Value) Backward() {
-	visited := make(map[int]bool)
-	collect := make([]*Value, 0)
-
-	dfs(v, &visited, &collect)
-	for i := range collect {
-		collect[i].Grad = 0.0
-	}
 	v.Grad = 1.0
-	for i := len(collect) - 1; i >= 0; i-- {
-		collect[i].PerformBackward()
+
+	if len(path) == 0 {
+		visited := make(map[int]bool)
+		collect := make([]*Value, 0)
+		dfs(v, &visited, &collect)
+		for i := len(collect) - 1; i >= 0; i-- {
+			path = append(path, collect[i])
+		}
 	}
 
-	collect = nil
-	visited = nil
+	for i := range path {
+		path[i].PerformBackward()
+	}
 }
 
 func (v *Value) ClearOldChildren() {
