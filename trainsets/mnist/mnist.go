@@ -76,10 +76,10 @@ func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLP {
 		layers.Linear(784, 128, &initializers.HeInitializer{}),
 		layers.ReLu(128),
 
-		// layers.Linear(128, 64, &initializers.HeInitializer{}),
-		// layers.ReLu(64),
+		layers.Linear(128, 64, &initializers.HeInitializer{}),
+		layers.ReLu(64),
 
-		layers.Linear(128, 32, &initializers.HeInitializer{}),
+		layers.Linear(64, 32, &initializers.HeInitializer{}),
 		layers.ReLu(32),
 
 		layers.Linear(32, 10, &initializers.SimpleInitializer{}),
