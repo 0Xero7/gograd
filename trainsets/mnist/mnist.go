@@ -16,6 +16,7 @@ import (
 	"gograd/nn/initializers"
 	"gograd/nn/layers"
 	lossfunctions "gograd/nn/loss_functions"
+	"gograd/optimizers"
 )
 
 func printMemStats() {
@@ -88,6 +89,8 @@ func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLP {
 	printMemStats()
 	ng.TValuePool.Mark()
 
+	adam := optimizers.NewAdam(learningRate)
+
 	totalTime := 0.0
 
 	for epoch := range iterations {
@@ -126,9 +129,10 @@ func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLP {
 
 		// Update
 		upStart := time.Now().UnixMilli()
-		for j := range params {
-			params[j].Value -= params[j].Grad * learningRate
-		}
+		// for j := range params {
+		// 	params[j].Value -= params[j].Grad * learningRate
+		// }
+		adam.Step(params)
 		upEnd := time.Now().UnixMilli()
 		fmt.Printf("Update Time = %f\n", float64(upEnd-upStart)/1000)
 
