@@ -3,8 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"gograd/trainsets/mnist"
-	"math/rand"
+	"gograd/ng"
 	"runtime"
 )
 
@@ -50,7 +49,19 @@ Epoch 199 completed in 0.695000. [871.430000 per epoch].
 func main() {
 	flag.Parse()
 
-	rand.Seed(1337)
+	t := ng.Tensor2D([][]float64{
+		{1, 2, 3, 4},
+		{5, 6, 7, 8},
+		{9, 10, 11, 12},
+		{13, 14, 15, 16},
+	})
+	fmt.Println(t)
+
+	fmt.Println(t.Negate())
+
+	fmt.Println(t.Add(t.Negate()))
+
+	// rand.Seed(1337)
 
 	// pool := ng.NewValuePool[int](func(index int) *int {
 	// 	temp := 1337
@@ -95,9 +106,9 @@ func main() {
 	// iris.TestIris(mlp)
 	// printMemStats()
 
-	mnist.LoadDataset()
-	mlp2 := mnist.TrainMNIST(200, 2, 0.0001)
-	mnist.TestMNIST(mlp2)
+	// mnist.LoadDataset()
+	// mlp2 := mnist.TrainMNIST(200, 2, 0.0001)
+	// mnist.TestMNIST(mlp2)
 
 	// reader := bufio.NewReader(os.Stdin)
 	// for {

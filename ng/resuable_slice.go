@@ -1,28 +1,46 @@
 package ng
 
-type Children struct {
-	children []*Value
+type TensorChildren struct {
+	children []*Tensor
 	capacity int
 	ptr      int
 }
 
-func NewChildren() *Children {
-	r := new(Children)
-	r.children = make([]*Value, 0)
+func NewTensorChildren() *TensorChildren {
+	r := new(TensorChildren)
+	r.children = make([]*Tensor, 0)
 	r.capacity = 0
 	r.ptr = 0
 	return r
 }
 
-func (c *Children) At(index int) *Value {
+func NewTensorChildrenWith(children []*Tensor) *TensorChildren {
+	r := new(TensorChildren)
+	r.children = make([]*Tensor, len(children))
+	copy(r.children, children)
+	r.capacity = 0
+	r.ptr = 0
+	return r
+}
+
+func (c *TensorChildren) Clone() *TensorChildren {
+	r := new(TensorChildren)
+	r.children = make([]*Tensor, len(c.children))
+	copy(r.children, c.children)
+	r.ptr = c.ptr
+	r.capacity = c.capacity
+	return r
+}
+
+func (c *TensorChildren) At(index int) *Tensor {
 	return c.children[index]
 }
 
-func (c *Children) Set(index int, value *Value) {
+func (c *TensorChildren) Set(index int, value *Tensor) {
 	c.children[index] = value
 }
 
-func (c *Children) Append(value *Value) {
+func (c *TensorChildren) Append(value *Tensor) {
 	if c.ptr == c.capacity {
 		newSize := c.capacity
 		if newSize == 0 {
@@ -32,7 +50,7 @@ func (c *Children) Append(value *Value) {
 		}
 		c.capacity = newSize
 
-		newPool := make([]*Value, newSize)
+		newPool := make([]*Tensor, newSize)
 		copy(newPool[0:c.capacity], c.children)
 		c.children = newPool
 	}
@@ -41,10 +59,10 @@ func (c *Children) Append(value *Value) {
 	c.ptr++
 }
 
-func (c *Children) Len() int {
+func (c *TensorChildren) Len() int {
 	return c.ptr
 }
 
-func (c *Children) Clear() {
+func (c *TensorChildren) Clear() {
 	c.ptr = 0
 }
