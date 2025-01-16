@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"gograd/ng"
+	"gograd/nn"
 	"runtime"
 )
 
@@ -49,14 +50,13 @@ Epoch 199 completed in 0.695000. [871.430000 per epoch].
 func main() {
 	flag.Parse()
 
-	a := ng.Scalar(1)
-	b := ng.Scalar(2)
-	d := ng.Scalar(3)
-	c := a.Add(b) // c = a + b = 3
-	e := c.Mul(d) // e = c * d = 3 * 3 = 9
-	fmt.Println(e)
-	e.Backward()
-	fmt.Println(a, b, c, d, e)
+	input := ng.Tensor1D([]float64{1, 2, 3})
+	neuron := nn.NewNeuronTensor(3)
+	for i := range neuron.Weights.Value {
+		neuron.Weights.Value[i] = 0.1
+	}
+	out := neuron.Call(input)
+	out.Backward()
 
 	// rand.Seed(1337)
 
