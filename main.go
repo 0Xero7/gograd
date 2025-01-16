@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"gograd/ng"
 	"gograd/nn"
+	"gograd/nn/initializers"
+	lossfunctions "gograd/nn/loss_functions"
+	tensorlayers "gograd/nn/tensor_layers"
 	"runtime"
 )
 
@@ -51,12 +54,26 @@ func main() {
 	flag.Parse()
 
 	input := ng.Tensor1D([]float64{1, 2, 3})
-	neuron := nn.NewNeuronTensor(3)
-	for i := range neuron.Weights.Value {
-		neuron.Weights.Value[i] = 0.1
+
+	mlp := nn.NewMLPTensor(3, []nn.TensorLayer{
+		tensorlayers.Linear(3, 4, &initializers.HeInitializer{}),
+		tensorlayers.ReLu(4),
+
+		tensorlayers.Linear(4, 5, &initializers.XavierInitializer{}),
+		tensorlayers.SoftMax(5),
+	})
+
+	out := mlp.Call(input)
+	loss := lossfunctions.CrossEntropyTensor(out, 3)
+	loss.Backward()
+
+	traceTensor(loss)
+
+	fmt.Println("out=", loss)
+
+	for _, v := range ng.PathT {
+		fmt.Println(v)
 	}
-	out := neuron.Call(input)
-	out.Backward()
 
 	// rand.Seed(1337)
 

@@ -241,6 +241,17 @@ func (t *Tensor) Transpose(dim1, dim2 int) *Tensor {
 	return tensor
 }
 
+func (t *Tensor) Extend(size int) {
+	utils.AssertTrue(len(t.Shape) == 1 && t.Shape[0] == 1, "Cannot extend non 0 dimensional tensors yet")
+	utils.AssertTrue(size > t.Len(), "New size is smaller than existing size")
+
+	t.Shape[0] = size
+	for len(t.Grad) < size {
+		t.Value = append(t.Value, t.Value[0])
+		t.Grad = append(t.Grad, t.Grad[0])
+	}
+}
+
 // -----------------------------------------------------------------------------------------------------------------------
 
 func (t *Tensor) Negate() *Tensor {
@@ -372,6 +383,62 @@ func (t *Tensor) Sigmoid() *Tensor {
 	return out
 }
 
+func (t *Tensor) Sum() *Tensor {
+	sum := 0.0
+	for i := range t.Len() {
+		sum += t.Value[i]
+	}
+
+	out := NewTensorFlatWith([]float64{sum}, []int{1}, "sum", t)
+
+	backward := func() {
+		for i := range t.Len() {
+			t.Grad[i] += out.Grad[0]
+		}
+	}
+	out.LocalBackward = backward
+
+	return out
+}
+
+func (t *Tensor) MaximumElement() *Tensor {
+	biggest := t.Value[0]
+	for i := 1; i < t.Len(); i++ {
+		if t.Value[i] > biggest {
+			biggest = t.Value[i]
+		}
+	}
+
+	out := NewTensorFlatWith([]float64{biggest}, []int{1}, "maximum_element", t)
+
+	backward := func() {
+		biggest := t.Value[0]
+		biggestIndex := 0
+		for i := 1; i < t.Len(); i++ {
+			if t.Value[i] > biggest {
+				biggest = t.Value[i]
+				biggestIndex = i
+			}
+		}
+
+		t.Grad[biggestIndex] += out.Grad[0]
+	}
+	out.LocalBackward = backward
+
+	return out
+}
+
+func (t *Tensor) Choose(index int) *Tensor {
+	out := NewTensorFlatWith([]float64{t.Value[index]}, []int{1}, "choose", t)
+
+	backward := func() {
+		t.Grad[index] += out.Grad[0]
+	}
+	out.LocalBackward = backward
+
+	return out
+}
+
 // -----------------------------------------------------------------------------------------------------------------------
 
 func (t *Tensor) Add(other *Tensor) *Tensor {
@@ -482,7 +549,7 @@ func (t *Tensor) Backward() {
 	}
 
 	for i := range PathT {
-		for j := range t.Grad {
+		for j := range PathT[i].Grad {
 			PathT[i].Grad[j] = 0.0
 		}
 	}
