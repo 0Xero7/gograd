@@ -95,7 +95,7 @@ func TensorOnes(shape ...int) *Tensor {
 }
 
 func TensorConst(value float64, shape ...int) *Tensor {
-	size := shape[1]
+	size := shape[0]
 	for _, w := range shape[1:] {
 		size *= w
 	}
@@ -463,7 +463,7 @@ func dfsT(root *Tensor, visited *map[int]bool, collect *[]*Tensor) {
 	*collect = append(*collect, root)
 }
 
-var pathT []*Tensor = make([]*Tensor, 0)
+var PathT []*Tensor = make([]*Tensor, 0)
 
 func (t *Tensor) PerformBackward() {
 	if t.LocalBackward != nil {
@@ -472,26 +472,25 @@ func (t *Tensor) PerformBackward() {
 }
 
 func (t *Tensor) Backward() {
-	if len(pathT) == 0 {
+	if len(PathT) == 0 {
 		visited := make(map[int]bool)
 		collect := make([]*Tensor, 0)
 		dfsT(t, &visited, &collect)
-		fmt.Println(collect)
 		for i := len(collect) - 1; i >= 0; i-- {
-			pathT = append(pathT, collect[i])
+			PathT = append(PathT, collect[i])
 		}
 	}
 
-	for i := range pathT {
+	for i := range PathT {
 		for j := range t.Grad {
-			pathT[i].Grad[j] = 0.0
+			PathT[i].Grad[j] = 0.0
 		}
 	}
 	for i := range t.Grad {
 		t.Grad[i] = 1.0
 	}
 
-	for i := range pathT {
-		pathT[i].PerformBackward()
+	for i := range PathT {
+		PathT[i].PerformBackward()
 	}
 }
