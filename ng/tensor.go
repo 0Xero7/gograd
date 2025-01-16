@@ -24,7 +24,7 @@ var TidGen atomic.Int64
 
 func NewTensorFlat(values []float64, shape []int) *Tensor {
 	tensor := &Tensor{
-		Id:       int(TidGen.Load()),
+		Id:       int(TidGen.Add(1)),
 		Value:    make([]float64, len(values)),
 		Grad:     make([]float64, len(values)),
 		Shape:    make([]int, len(shape)),
@@ -38,13 +38,12 @@ func NewTensorFlat(values []float64, shape []int) *Tensor {
 
 	tensor.recalcuateStrides()
 
-	TidGen.Add(1)
 	return tensor
 }
 
 func NewTensorFlatWith(values []float64, shape []int, op string, children ...*Tensor) *Tensor {
 	tensor := &Tensor{
-		Id:       int(TidGen.Load()),
+		Id:       int(TidGen.Add(1)),
 		Value:    make([]float64, len(values)),
 		Grad:     make([]float64, len(values)),
 		Shape:    make([]int, len(shape)),
@@ -58,7 +57,6 @@ func NewTensorFlatWith(values []float64, shape []int, op string, children ...*Te
 
 	tensor.recalcuateStrides()
 
-	TidGen.Add(1)
 	return tensor
 }
 
@@ -80,6 +78,34 @@ func Tensor2D(data [][]float64) *Tensor {
 		}
 	}
 	return NewTensorFlat(flattened, []int{rows, cols})
+}
+
+func TensorOnes(shape ...int) *Tensor {
+	size := shape[1]
+	for _, w := range shape[1:] {
+		size *= w
+	}
+
+	vals := make([]float64, size)
+	for i := range vals {
+		vals[i] = 1
+	}
+
+	return NewTensorFlat(vals, shape)
+}
+
+func TensorConst(value float64, shape ...int) *Tensor {
+	size := shape[1]
+	for _, w := range shape[1:] {
+		size *= w
+	}
+
+	vals := make([]float64, size)
+	for i := range vals {
+		vals[i] = value
+	}
+
+	return NewTensorFlat(vals, shape)
 }
 
 // -----------------------------------------------------------------------------------------------------------------------
@@ -115,7 +141,7 @@ func (t *Tensor) String() string {
 			for i := 0; i < len(idx); i++ {
 				flatIdx += idx[i] * t.Strides[i]
 			}
-			return fmt.Sprintf("%.4f", t.Value[flatIdx])
+			return fmt.Sprintf("value=%.4f, grad=%.4f", t.Value[flatIdx], t.Grad[flatIdx])
 		}
 
 		var sb strings.Builder
@@ -421,4 +447,51 @@ func (t *Tensor) Max(other *Tensor) *Tensor {
 	out.LocalBackward = backward
 
 	return out
+}
+
+// -----------------------------------------------------------------------------------------------------------------------
+
+func dfsT(root *Tensor, visited *map[int]bool, collect *[]*Tensor) {
+	if _, found := (*visited)[root.Id]; found {
+		return
+	}
+
+	(*visited)[root.Id] = true
+	for i := 0; i < root.Children.Len(); i++ {
+		dfsT(root.Children.At(i), visited, collect)
+	}
+	*collect = append(*collect, root)
+}
+
+var pathT []*Tensor = make([]*Tensor, 0)
+
+func (t *Tensor) PerformBackward() {
+	if t.LocalBackward != nil {
+		t.LocalBackward()
+	}
+}
+
+func (t *Tensor) Backward() {
+	if len(pathT) == 0 {
+		visited := make(map[int]bool)
+		collect := make([]*Tensor, 0)
+		dfsT(t, &visited, &collect)
+		fmt.Println(collect)
+		for i := len(collect) - 1; i >= 0; i-- {
+			pathT = append(pathT, collect[i])
+		}
+	}
+
+	for i := range pathT {
+		for j := range t.Grad {
+			pathT[i].Grad[j] = 0.0
+		}
+	}
+	for i := range t.Grad {
+		t.Grad[i] = 1.0
+	}
+
+	for i := range pathT {
+		pathT[i].PerformBackward()
+	}
 }

@@ -18,8 +18,8 @@ func NewTensorChildrenWith(children []*Tensor) *TensorChildren {
 	r := new(TensorChildren)
 	r.children = make([]*Tensor, len(children))
 	copy(r.children, children)
-	r.capacity = 0
-	r.ptr = 0
+	r.capacity = len(children)
+	r.ptr = len(children)
 	return r
 }
 

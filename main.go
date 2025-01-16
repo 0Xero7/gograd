@@ -49,17 +49,14 @@ Epoch 199 completed in 0.695000. [871.430000 per epoch].
 func main() {
 	flag.Parse()
 
-	t := ng.Tensor2D([][]float64{
-		{1, 2, 3, 4},
-		{5, 6, 7, 8},
-		{9, 10, 11, 12},
-		{13, 14, 15, 16},
-	})
-	fmt.Println(t)
-
-	fmt.Println(t.Negate())
-
-	fmt.Println(t.Add(t.Negate()))
+	a := ng.Scalar(1)
+	b := ng.Scalar(2)
+	d := ng.Scalar(3)
+	c := a.Add(b) // c = a + b = 3
+	e := c.Mul(d) // e = c * d = 3 * 3 = 9
+	fmt.Println(e)
+	e.Backward()
+	fmt.Println(a, b, c, d, e)
 
 	// rand.Seed(1337)
 
