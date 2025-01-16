@@ -141,7 +141,7 @@ func (t *Tensor) String() string {
 			for i := 0; i < len(idx); i++ {
 				flatIdx += idx[i] * t.Strides[i]
 			}
-			return fmt.Sprintf("value=%.4f, grad=%.4f", t.Value[flatIdx], t.Grad[flatIdx])
+			return fmt.Sprintf("id=%d, value=%.4f, grad=%.4f", t.Id, t.Value[flatIdx], t.Grad[flatIdx])
 		}
 
 		var sb strings.Builder
@@ -432,6 +432,7 @@ func (t *Tensor) Choose(index int) *Tensor {
 	out := NewTensorFlatWith([]float64{t.Value[index]}, []int{1}, "choose", t)
 
 	backward := func() {
+		// fmt.Println("Backprop called. Index =", index, ". Value =", out)
 		t.Grad[index] += out.Grad[0]
 	}
 	out.LocalBackward = backward
@@ -539,14 +540,15 @@ func (t *Tensor) PerformBackward() {
 }
 
 func (t *Tensor) Backward() {
-	if len(PathT) == 0 {
-		visited := make(map[int]bool)
-		collect := make([]*Tensor, 0)
-		dfsT(t, &visited, &collect)
-		for i := len(collect) - 1; i >= 0; i-- {
-			PathT = append(PathT, collect[i])
-		}
+	// if len(PathT) == 0 {
+	visited := make(map[int]bool)
+	collect := make([]*Tensor, 0)
+	dfsT(t, &visited, &collect)
+	PathT = make([]*Tensor, 0)
+	for i := len(collect) - 1; i >= 0; i-- {
+		PathT = append(PathT, collect[i])
 	}
+	// }
 
 	for i := range PathT {
 		for j := range PathT[i].Grad {

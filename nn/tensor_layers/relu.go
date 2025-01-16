@@ -21,14 +21,14 @@ func ReLu(dims int) nn.TensorLayer {
 	return layer
 }
 
-// // Constructor
-// func Tanh(dims int) nn.Layer {
-// 	layer := new(ActivationLayer)
-// 	layer.CachedOutputs = make([]*ng.Value, dims)
-// 	layer.Dim = dims
-// 	layer.Type = tanh
-// 	return layer
-// }
+// Constructor
+func Tanh(dims int) nn.TensorLayer {
+	layer := new(ActivationLayer)
+	// layer.CachedOutputs = make([]*ng.Value, dims)
+	layer.Dim = dims
+	layer.Type = tanh
+	return layer
+}
 
 // // Constructor
 // func Sigmoid(dims int) nn.Layer {

@@ -1,4 +1,4 @@
-package main
+package tracers
 
 import (
 	"bytes"
@@ -12,11 +12,11 @@ import (
 	"github.com/goccy/go-graphviz/cgraph"
 )
 
-func getTensorNodeID(v *ng.Tensor) string {
-	return fmt.Sprintf("%s", &v.Id)
+func getNodeID(v *ng.Value) string {
+	return fmt.Sprintf("%p", v)
 }
 
-func traceTensor(root *ng.Tensor) {
+func trace(root *ng.Value) {
 	ctx := context.Background()
 	g, err := graphviz.New(ctx)
 	if err != nil {
@@ -37,16 +37,16 @@ func traceTensor(root *ng.Tensor) {
 		g.Close()
 	}()
 
-	nodes := make(map[*ng.Tensor]*cgraph.Node)
-	var buildGraph func(v *ng.Tensor) *cgraph.Node
-	buildGraph = func(v *ng.Tensor) *cgraph.Node {
+	nodes := make(map[*ng.Value]*cgraph.Node)
+	var buildGraph func(v *ng.Value) *cgraph.Node
+	buildGraph = func(v *ng.Value) *cgraph.Node {
 		if node, exists := nodes[v]; exists {
 			return node
 		}
 
 		// Create value node with box shape
-		node, err := graph.CreateNodeByName(getTensorNodeID(v))
-		node.SetLabel(fmt.Sprintf("%d\ndata=%.4f\ngrad=%.4f", v.Id, v.Value, v.Grad))
+		node, err := graph.CreateNodeByName(getNodeID(v))
+		node.SetLabel(fmt.Sprintf("%d | data=%.4f | grad=%.4f", v.Id, v.Value, v.Grad))
 		node.SetShape("box")
 		node.SetStyle("filled")
 		node.SetFillColor("lightblue")
@@ -58,7 +58,7 @@ func traceTensor(root *ng.Tensor) {
 
 		if v.Children.Len() > 0 && v.Op != "X" {
 			// Create operation node with circle shape
-			opNode, err := graph.CreateNodeByName(fmt.Sprintf("op_%s", getTensorNodeID(v)))
+			opNode, err := graph.CreateNodeByName(fmt.Sprintf("op_%s", getNodeID(v)))
 			if err != nil {
 				panic(err)
 			}
