@@ -3,11 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"gograd/ng"
-	"gograd/nn"
-	"gograd/nn/initializers"
-	tensorlayers "gograd/nn/tensor_layers"
-	"math/rand"
+	iristensor "gograd/trainsets/iris_tensor"
 	"runtime"
 )
 
@@ -75,51 +71,51 @@ func main() {
 	// 	fmt.Println(v)
 	// }
 
-	xs := []*ng.Tensor{
-		ng.Tensor1D([]float64{2, 3, -1}),
-		ng.Tensor1D([]float64{3, -1, 0.5}),
-		ng.Tensor1D([]float64{0.5, 1, 1}),
-		ng.Tensor1D([]float64{1, 1, -1}),
-	}
-	ys := []*ng.Tensor{
-		ng.Scalar(1),
-		ng.Scalar(-1),
-		ng.Scalar(-1),
-		ng.Scalar(1),
-	}
+	// xs := []*ng.Tensor{
+	// 	ng.Tensor1D([]float64{2, 3, -1}),
+	// 	ng.Tensor1D([]float64{3, -1, 0.5}),
+	// 	ng.Tensor1D([]float64{0.5, 1, 1}),
+	// 	ng.Tensor1D([]float64{1, 1, -1}),
+	// }
+	// ys := []*ng.Tensor{
+	// 	ng.Scalar(1),
+	// 	ng.Scalar(-1),
+	// 	ng.Scalar(-1),
+	// 	ng.Scalar(1),
+	// }
 
-	rand.Seed(1337)
+	// rand.Seed(1337)
 
-	mlp := nn.NewMLPTensor(3, []nn.TensorLayer{
-		tensorlayers.Linear(3, 4, &initializers.SimpleInitializer{}),
-		tensorlayers.Linear(4, 4, &initializers.SimpleInitializer{}),
-		tensorlayers.Linear(4, 1, &initializers.SimpleInitializer{}),
-	})
+	// mlp := nn.NewMLPTensor(3, []nn.TensorLayer{
+	// 	tensorlayers.Linear(3, 4, &initializers.SimpleInitializer{}),
+	// 	tensorlayers.Linear(4, 4, &initializers.SimpleInitializer{}),
+	// 	tensorlayers.Linear(4, 1, &initializers.SimpleInitializer{}),
+	// })
 
-	for range 100 {
-		results := make([]*ng.Tensor, 0)
-		for i := range xs {
-			results = append(results, mlp.Call(xs[i]))
-		}
+	// for range 100 {
+	// 	results := make([]*ng.Tensor, 0)
+	// 	for i := range xs {
+	// 		results = append(results, mlp.Call(xs[i]))
+	// 	}
 
-		loss := ng.Scalar(0)
-		for i := range results {
-			loss = loss.Add((results[i].Sub(ys[i])).Pow(2))
-		}
-		loss.Backward()
+	// 	loss := ng.Scalar(0)
+	// 	for i := range results {
+	// 		loss = loss.Add((results[i].Sub(ys[i])).Pow(2))
+	// 	}
+	// 	loss.Backward()
 
-		fmt.Println(loss)
+	// 	fmt.Println(loss)
 
-		for _, p := range mlp.Parameters() {
-			for j := range p.Grad {
-				p.Value[j] -= p.Grad[j] * 0.01
-			}
-		}
-	}
+	// 	for _, p := range mlp.Parameters() {
+	// 		for j := range p.Grad {
+	// 			p.Value[j] -= p.Grad[j] * 0.01
+	// 		}
+	// 	}
+	// }
 
-	// iristensor.LoadAndSplitDataset()
-	// mlp := iristensor.TrainIris(1000, 1, 0.0000000001)
-	// iristensor.TestIris(mlp)
+	iristensor.LoadAndSplitDataset()
+	mlp2 := iristensor.TrainIris(5000, 100, 0.001)
+	iristensor.TestIris(mlp2)
 
 	// pool := ng.NewValuePool[int](func(index int) *int {
 	// 	temp := 1337

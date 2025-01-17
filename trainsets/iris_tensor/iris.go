@@ -7,7 +7,7 @@ import (
 	"gograd/nn/initializers"
 	lossfunctions "gograd/nn/loss_functions"
 	tensorlayers "gograd/nn/tensor_layers"
-	"gograd/tracers"
+	"gograd/optimizers"
 	"math/rand"
 	"os"
 	"runtime"
@@ -29,7 +29,7 @@ func printMemStats() {
 }
 
 var trainInputs []*ng.Tensor
-var trainOutputs []float64
+var trainOutputs []int
 
 var testInputs []*ng.Tensor
 var testOutputs []float64
@@ -51,8 +51,8 @@ func LoadAndSplitDataset() {
 	trainSplit := lines[0:100]
 	testSplit := lines[100:150]
 
-	trainInputs = []*ng.Tensor{}
-	trainOutputs = []float64{}
+	trainInputs = make([]*ng.Tensor, 0)
+	trainOutputs = make([]int, 0)
 	for _, line := range trainSplit {
 		d := strings.Split(line, ",")
 		x1, _ := strconv.ParseFloat(d[0], 64)
@@ -62,9 +62,9 @@ func LoadAndSplitDataset() {
 		y, _ := strconv.ParseFloat(d[4], 64)
 
 		trainInputs = append(trainInputs, ng.NewTensorFlat([]float64{x1, x2, x3, x4}, []int{4}))
-
-		trainOutputs = append(trainOutputs, y)
+		trainOutputs = append(trainOutputs, int(y))
 	}
+	fmt.Println(trainOutputs)
 
 	testInputs = []*ng.Tensor{}
 	testOutputs = []float64{}
@@ -83,14 +83,17 @@ func LoadAndSplitDataset() {
 
 func TrainIris(iterations, batchSize int, learningRate float64) *nn.MLPTensor {
 	mlp := nn.NewMLPTensor(4, []nn.TensorLayer{
-		tensorlayers.Linear(4, 32, &initializers.XavierInitializer{}),
+		tensorlayers.Linear(4, 32, &initializers.HeInitializer{}),
 		tensorlayers.Tanh(32),
 
-		tensorlayers.Linear(32, 3, &initializers.XavierInitializer{}),
+		tensorlayers.Linear(32, 16, &initializers.HeInitializer{}),
+		tensorlayers.Tanh(16),
+
+		tensorlayers.Linear(16, 3, &initializers.HeInitializer{}),
 		tensorlayers.SoftMax(3),
 	})
-	params := mlp.Parameters()
-	// ng.TValuePool.Mark()
+
+	optimizer := optimizers.NewAdamTensor(learningRate)
 
 	totalTime := 0.0
 
@@ -106,12 +109,18 @@ func TrainIris(iterations, batchSize int, learningRate float64) *nn.MLPTensor {
 
 		// Forward Pass
 		fpStart := time.Now().UnixMilli()
-		index := rand.Intn(len(trainInputs))
 
-		results := mlp.Call(trainInputs[index])
-		target := int(trainOutputs[index])
+		results := make([]*ng.Tensor, batchSize)
+		ys := make([]int, batchSize)
 
-		loss := lossfunctions.CrossEntropyTensor(results, target)
+		for index := range batchSize {
+			output := mlp.Call(trainInputs[index])
+			results[index] = output
+			ys[index] = int(trainOutputs[index])
+			// target := int(trainOutputs[index])
+		}
+
+		loss := lossfunctions.BatchCrossEntropyTensor(results, ys)
 
 		fpEnd := time.Now().UnixMilli()
 		// fmt.Printf("Epoch = %d, Loss = %.12f\n", epoch, loss.Value)
@@ -128,12 +137,13 @@ func TrainIris(iterations, batchSize int, learningRate float64) *nn.MLPTensor {
 
 		// Update
 		upStart := time.Now().UnixMilli()
-		params = ng.PathT
-		for j := range params {
-			for k := range params[j].Value {
-				params[j].Value[k] -= params[j].Grad[k] * learningRate
-			}
-		}
+		params := ng.PathT
+		optimizer.Step(params)
+		// for j := range params {
+		// 	for k := range params[j].Value {
+		// 		params[j].Value[k] -= params[j].Grad[k] * learningRate
+		// 	}
+		// }
 		upEnd := time.Now().UnixMilli()
 		// fmt.Printf("Update Time = %f\n", float64(upEnd-upStart)/1000)
 
@@ -146,9 +156,9 @@ func TrainIris(iterations, batchSize int, learningRate float64) *nn.MLPTensor {
 			fmt.Printf("Epoch %d completed in %f. [%f per epoch] Loss = %.4f.\n\n", epoch, float64((upEnd+bpEnd+fpEnd)-(upStart+bpStart+fpStart))/1000, totalTime/float64(epoch+1), loss.Value)
 		}
 
-		if epoch == iterations-1 {
-			tracers.TraceTensor(loss)
-		}
+		// if epoch == iterations-1 {
+		// 	tracers.TraceTensor(loss)
+		// }
 
 		// fmt.Println(ng.IdGen.Load())
 		loss = nil

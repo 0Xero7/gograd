@@ -15,6 +15,8 @@ func NewNeuronTensor(dim int) *NeuronTensor {
 	n.Dimension = dim
 	n.Weights = ng.TensorConst(0, dim)
 	n.Bias = ng.Scalar(0)
+	n.Weights.RequiresOptimization = true
+	n.Bias.RequiresOptimization = true
 	return n
 }
 

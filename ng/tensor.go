@@ -18,6 +18,8 @@ type Tensor struct {
 	LocalBackward func()
 	Op            string
 	Children      TensorChildren
+
+	RequiresOptimization bool
 }
 
 var TidGen atomic.Int64
