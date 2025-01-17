@@ -4,6 +4,7 @@ import (
 	"flag"
 	mnisttensor "gograd/trainsets/mnist_tensor"
 	"math/rand"
+	_ "net/http/pprof"
 )
 
 var memprofile = flag.String("memprofile", "", "write memory profile to file")
@@ -38,6 +39,23 @@ BEFORE PERF OPT: (50, 512, 0.00001)
 	Update Time = 0.050000
 	Epoch 49 completed in 3.281000. [2934.000000 per epoch].
 
+"Pool + SIMD":
+	Alloc = 5349 MB
+	Total Alloc = 333999 MB
+	Epoch = 49, Loss = [0.329019796407]
+	Forward Pass Time = 1.164000
+	Backward Pass Time = 0.981000
+	Update Time = 0.074000
+	Epoch 49 completed in 2.219000. [2238.100000 per epoch].
+
+"Optimized Pool":
+	Alloc = 5349 MB
+	Total Alloc = 118595 MB
+	Epoch = 49, Loss = [0.329019796407]
+	Forward Pass Time = 0.825000
+	Backward Pass Time = 0.847000
+	Update Time = 0.066000
+	Epoch 49 completed in 1.738000. [1809.320000 per epoch].
 */
 
 func main() {
@@ -50,6 +68,14 @@ func main() {
 	// iristensor.TestIris(mlp2)
 
 	mnisttensor.LoadDataset()
+	// f, _ := os.Create("cpu.prof")
+	// defer f.Close() // error handling omitted for example
+
+	// if err := pprof.StartCPUProfile(f); err != nil {
+	// 	log.Fatal("could not start CPU profile: ", err)
+	// }
 	mlp3 := mnisttensor.TrainMNIST(50, 512, 0.00001)
+	// pprof.StopCPUProfile()
+
 	mnisttensor.TestMNIST(mlp3)
 }

@@ -67,5 +67,6 @@ func (mlp *MLPTensor) Predict(input *ng.Tensor) int {
 		}
 	}
 
+	ng.TTensorPool.Reset()
 	return maxIdx
 }

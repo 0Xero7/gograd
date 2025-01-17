@@ -91,6 +91,8 @@ func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLPTensor {
 		tensorlayers.Linear(64, 10, &initializers.SimpleInitializer{}),
 		tensorlayers.SoftMax(10),
 	})
+	ng.TTensorPool.Mark()
+
 	params := mlp.Parameters()
 	fmt.Println("Created MLP")
 	printMemStats()
@@ -146,6 +148,8 @@ func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLPTensor {
 		// fmt.Println()
 		fmt.Printf("Epoch %d completed in %f. [%f per epoch].\n\n", epoch, float64((upEnd+bpEnd+fpEnd)-(upStart+bpStart+fpStart))/1000, totalTime/float64(epoch+1))
 		runtime.GC()
+
+		ng.TTensorPool.Reset()
 		perf.PrintMemStats()
 		ng.TValuePool.Reset()
 	}

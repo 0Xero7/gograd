@@ -27,7 +27,7 @@ var TValuePool ValuePool[Value] = NewValuePool(func(index int) *Value {
 })
 
 func NewValueLiteral(value float64) *Value {
-	v := TValuePool.Get() //new(Value)
+	v, _ := TValuePool.Get() //new(Value)
 	v.Id = int(IdGen.Load())
 	IdGen.Add(1)
 	// v.Label = fmt.Sprint(v.Id)
@@ -46,7 +46,7 @@ func NewValueLiteral(value float64) *Value {
 }
 
 func NewValue(value float64, op string) *Value {
-	v := TValuePool.Get() //new(Value)
+	v, _ := TValuePool.Get() //new(Value)
 	v.Id = int(IdGen.Load())
 	IdGen.Add(1)
 	// v.Label = fmt.Sprint(v.Id)

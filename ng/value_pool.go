@@ -19,7 +19,7 @@ func NewValuePool[T any](factory func(index int) *T) ValuePool[T] {
 	return pool
 }
 
-func (v *ValuePool[T]) Get() *T {
+func (v *ValuePool[T]) Get() (*T, bool) {
 	if v.ptr == v.capacity {
 		newSize := v.capacity
 		if newSize == 0 {
@@ -35,12 +35,13 @@ func (v *ValuePool[T]) Get() *T {
 	}
 
 	obj := v.pool[v.ptr]
+	exists := obj != nil
 	if obj == nil {
 		obj = v.factory(v.ptr)
 		v.pool[v.ptr] = obj
 	}
 	v.ptr++
-	return obj
+	return obj, exists
 }
 
 func (v *ValuePool[T]) Reset() {

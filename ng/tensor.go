@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"sync/atomic"
+
+	"github.com/kelindar/simd"
 )
 
 type Tensor struct {
@@ -19,20 +21,29 @@ type Tensor struct {
 	Op            string
 	Children      TensorChildren
 
+	Size                 int
 	RequiresOptimization bool
 }
 
 var TidGen atomic.Int64
+var TTensorPool ValuePool[Tensor] = NewValuePool(func(index int) *Tensor {
+	r := new(Tensor)
+	r.Id = index
+	r.Children.Clear()
+	return r
+})
 
 func NewTensorFlat(values []float64, shape []int) *Tensor {
-	tensor := &Tensor{
-		Id:       int(TidGen.Add(1)),
-		Value:    make([]float64, len(values)),
-		Grad:     make([]float64, len(values)),
-		Shape:    make([]int, len(shape)),
-		Strides:  make([]int, len(shape)),
-		Op:       "None",
-		Children: *NewTensorChildren(),
+	tensor, exists := TTensorPool.Get()
+	if !exists {
+		tensor.Value = make([]float64, len(values))
+		tensor.Grad = make([]float64, len(values))
+		tensor.Shape = make([]int, len(shape))
+		tensor.Strides = make([]int, len(shape))
+		tensor.Op = "None"
+		tensor.Children = *NewTensorChildren()
+	} else {
+		tensor.Children.Clear()
 	}
 
 	copy(tensor.Value, values)
@@ -44,14 +55,16 @@ func NewTensorFlat(values []float64, shape []int) *Tensor {
 }
 
 func NewTensorFlatWith(values []float64, shape []int, op string, children ...*Tensor) *Tensor {
-	tensor := &Tensor{
-		Id:       int(TidGen.Add(1)),
-		Value:    make([]float64, len(values)),
-		Grad:     make([]float64, len(values)),
-		Shape:    make([]int, len(shape)),
-		Strides:  make([]int, len(shape)),
-		Op:       op,
-		Children: *NewTensorChildrenWith(children),
+	tensor, exists := TTensorPool.Get()
+	if !exists {
+		tensor.Value = make([]float64, len(values))
+		tensor.Grad = make([]float64, len(values))
+		tensor.Shape = make([]int, len(shape))
+		tensor.Strides = make([]int, len(shape))
+		tensor.Op = op
+		tensor.Children = *NewTensorChildrenWith(children)
+	} else {
+		tensor.Children.Clear()
 	}
 
 	copy(tensor.Value, values)
@@ -113,11 +126,7 @@ func TensorConst(value float64, shape ...int) *Tensor {
 // -----------------------------------------------------------------------------------------------------------------------
 
 func (t *Tensor) Len() int {
-	size := t.Shape[0]
-	for _, w := range t.Shape[1:] {
-		size *= w
-	}
-	return size
+	return t.Size
 }
 
 func (t *Tensor) recalcuateStrides() {
@@ -127,6 +136,7 @@ func (t *Tensor) recalcuateStrides() {
 		t.Strides[i] = stride
 		stride = stride * t.Shape[i]
 	}
+	t.Size = stride
 }
 
 func (t *Tensor) Dim() int {
@@ -449,9 +459,7 @@ func (t *Tensor) Add(other *Tensor) *Tensor {
 
 	n := t.Len()
 	vals := make([]float64, n)
-	for i := range n {
-		vals[i] = t.Value[i] + other.Value[i]
-	}
+	simd.AddFloat64s(vals, t.Value, other.Value)
 
 	out := NewTensorFlatWith(vals, t.Shape, "add", t, other)
 	backward := func() {
@@ -482,9 +490,7 @@ func (t *Tensor) Mul(other *Tensor) *Tensor {
 
 	n := t.Len()
 	vals := make([]float64, n)
-	for i := range n {
-		vals[i] = t.Value[i] * other.Value[i]
-	}
+	simd.MulFloat64s(vals, t.Value, other.Value)
 
 	out := NewTensorFlatWith(vals, t.Shape, "mul", t, other)
 	backward := func() {
@@ -558,26 +564,32 @@ func (t *Tensor) PerformBackward() {
 }
 
 func (t *Tensor) Backward() {
-	// if len(PathT) == 0 {
-	visited := make(map[int]bool)
-	collect := make([]*Tensor, 0)
-	dfsT(t, &visited, &collect)
-	PathT = make([]*Tensor, 0)
-	for i := len(collect) - 1; i >= 0; i-- {
-		PathT = append(PathT, collect[i])
-	}
-	// }
-
-	for i := range PathT {
-		for j := range PathT[i].Grad {
-			PathT[i].Grad[j] = 0.0
+	if len(PathT) == 0 {
+		visited := make(map[int]bool)
+		collect := make([]*Tensor, 0)
+		dfsT(t, &visited, &collect)
+		PathT = make([]*Tensor, 0)
+		for i := len(collect) - 1; i >= 0; i-- {
+			PathT = append(PathT, collect[i])
 		}
 	}
-	for i := range t.Grad {
-		t.Grad[i] = 1.0
+
+	pathLen := len(PathT)
+	for i := range pathLen {
+		grads := PathT[i].Grad
+		n := len(grads)
+		for j := range n {
+			grads[j] = 0.0
+		}
 	}
 
-	for i := range PathT {
+	tGrad := t.Grad
+	tLen := len(tGrad)
+	for i := range tLen {
+		tGrad[i] = 1.0
+	}
+
+	for i := range pathLen {
 		PathT[i].PerformBackward()
 	}
 }
