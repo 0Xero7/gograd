@@ -1,75 +1,66 @@
 package tensorlayers
 
-import "gograd/ng"
+import (
+	"gograd/ng"
+	"gograd/nn"
+	"math"
+)
 
-type SoftMaxLayer struct {
-	Dim           int
-	CachedOutputs *ng.Tensor
+type SoftmaxLayer struct {
+	Dim int
 }
 
-func SoftMax(dim int) *SoftMaxLayer {
-	return &SoftMaxLayer{
-		Dim: dim,
+func SoftMax(dim int) nn.TensorLayer {
+	layer := new(SoftmaxLayer)
+	layer.Dim = dim
+	return layer
+}
+
+func (l *SoftmaxLayer) Call(inputs *ng.Tensor) *ng.Tensor {
+	// Find max for numerical stability
+	maxVal := inputs.Value[0]
+	for i := 1; i < len(inputs.Value); i++ {
+		if inputs.Value[i] > maxVal {
+			maxVal = inputs.Value[i]
+		}
 	}
-}
 
-func (s *SoftMaxLayer) Call(inputs *ng.Tensor) *ng.Tensor {
-	if inputs.Len() != s.Dim {
-		panic("Input dimensions don't match neuron dimensions")
+	// Compute exp(x - max) for each input
+	expSum := 0.0
+	exps := make([]float64, len(inputs.Value))
+	for i := range inputs.Value {
+		exps[i] = math.Exp(inputs.Value[i] - maxVal)
+		expSum += exps[i]
 	}
 
-	biggest := inputs.MaximumElement()
-	biggest.Extend(s.Dim)
+	// Normalize to get probabilities
+	outputs := make([]float64, len(inputs.Value))
+	for i := range outputs {
+		outputs[i] = exps[i] / expSum
+	}
 
-	exponents := inputs.Sub(biggest).Exp()
-	expSum := exponents.Sum()
-	expSum.Extend(s.Dim)
-	logits := exponents.Div(expSum)
+	out := ng.NewTensorFlatWith(outputs, []int{len(outputs)}, "softmax_output", inputs)
 
-	return logits
+	// Define backward pass for softmax
+	out.LocalBackward = func() {
+		for i := range outputs {
+			for j := range outputs {
+				if i == j {
+					inputs.Grad[i] += out.Grad[i] * outputs[i] * (1 - outputs[i])
+				} else {
+					inputs.Grad[i] += -out.Grad[j] * outputs[i] * outputs[j]
+				}
+			}
+		}
+	}
 
-	// Compute each neuron's output
-	// outputs := make([]float64, s.Dim)
-	// results := make([]*ng.Tensor, s.Dim)
-
-	// Compute remaining neurons and stack their outputs
-
-	// for i := range s.Dim {
-	// 	neuronOutput := s.Neurons[i].Call(inputs)
-	// 	outputs[i] = neuronOutput.Value[0]
-	// 	results[i] = neuronOutput
-	// }
-
-	// Create output tensor with all neuron outputs
-	// out := ng.NewTensorFlatWith(outputs, []int{s.Dim}, "linear_output", results...)
-
-	// maxLogit := inputs[0]
-	// for _, logit := range inputs[1:] {
-	// 	maxLogit = maxLogit.Max(logit)
-	// }
-
-	// var sumExp *ng.Tensor = nil
-	// // for i, logit := range inputs {
-	// s.CachedOutputs = logit.Sub(maxLogit).Exp()
-
-	// if sumExp == nil {
-	// 	sumExp = s.CachedOutputs[i]
-	// } else {
-	// 	sumExp = sumExp.Add(s.CachedOutputs[i])
-	// }
-	// // }
-
-	// for i := range s.CachedOutputs {
-	// 	s.CachedOutputs[i] = s.CachedOutputs[i].Div(sumExp)
-	// }
-
-	// return s.CachedOutputs
+	return out
 }
 
-func (s *SoftMaxLayer) Parameters() []*ng.Tensor {
+func (l *SoftmaxLayer) Parameters() []*ng.Tensor {
 	return []*ng.Tensor{}
 }
 
-func (s *SoftMaxLayer) FanOut() int {
-	return s.Dim
+func (l *SoftmaxLayer) FanOut() int {
+	return l.Dim
 }
