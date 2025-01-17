@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	iristensor "gograd/trainsets/iris_tensor"
+	mnisttensor "gograd/trainsets/mnist_tensor"
 	"runtime"
 )
 
@@ -113,9 +113,13 @@ func main() {
 	// 	}
 	// }
 
-	iristensor.LoadAndSplitDataset()
-	mlp2 := iristensor.TrainIris(5000, 100, 0.001)
-	iristensor.TestIris(mlp2)
+	// iristensor.LoadAndSplitDataset()
+	// mlp2 := iristensor.TrainIris(5000, 100, 0.001)
+	// iristensor.TestIris(mlp2)
+
+	mnisttensor.LoadDataset()
+	mlp3 := mnisttensor.TrainMNIST(50, 512, 0.00001)
+	mnisttensor.TestMNIST(mlp3)
 
 	// pool := ng.NewValuePool[int](func(index int) *int {
 	// 	temp := 1337
