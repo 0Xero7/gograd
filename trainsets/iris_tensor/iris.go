@@ -175,7 +175,7 @@ func TestIris(mlp *nn.MLPTensor) {
 	total := len(trainInputs) + len(testInputs)
 	for i := range len(trainInputs) {
 		class := mlp.Predict(trainInputs[i])
-		fmt.Printf("Output #%d: Actual: %.0f Got: %d\n", i, trainOutputs[i], class)
+		fmt.Printf("Output #%d: Actual: %d Got: %d\n", i, trainOutputs[i], class)
 		if class == int(trainOutputs[i]) {
 			accuracy++
 			trainAccuracy++
