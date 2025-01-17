@@ -17,6 +17,7 @@ import (
 	lossfunctions "gograd/nn/loss_functions"
 	tensorlayers "gograd/nn/tensor_layers"
 	"gograd/optimizers"
+	"gograd/perf"
 )
 
 func printMemStats() {
@@ -78,13 +79,13 @@ func LoadDataset() {
 
 func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLPTensor {
 	mlp := nn.NewMLPTensor(784, []nn.TensorLayer{
-		tensorlayers.Linear(784, 256, &initializers.HeInitializer{}),
+		tensorlayers.Linear(784, 512, &initializers.HeInitializer{}),
+		tensorlayers.ReLu(512),
+
+		tensorlayers.Linear(512, 256, &initializers.HeInitializer{}),
 		tensorlayers.ReLu(256),
 
-		tensorlayers.Linear(256, 128, &initializers.HeInitializer{}),
-		tensorlayers.ReLu(128),
-
-		tensorlayers.Linear(128, 64, &initializers.HeInitializer{}),
+		tensorlayers.Linear(256, 64, &initializers.HeInitializer{}),
 		tensorlayers.ReLu(64),
 
 		tensorlayers.Linear(64, 10, &initializers.SimpleInitializer{}),
@@ -111,31 +112,14 @@ func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLPTensor {
 
 		// Forward Pass
 		fpStart := time.Now().UnixMilli()
-		// loss := ng.NewValueLiteral(0)
-		// for index := range batchSize {
-		// 	results := mlp.Call(trainInputs[batch[index]])
-		// 	target := trainOutputs[batch[index]]
-
-		// 	lossItem := lossfunctions.SoftmaxCrossEntropy(results, int(target))
-		// 	loss = loss.Add(lossItem)
-		// }
-		// loss = loss.Div(ng.NewValueLiteral(float64(batchSize)))
-
-		// loss := ng.NewValueLiteral(0)
 
 		probabilities := make([]*ng.Tensor, batchSize)
 		classes := make([]int, batchSize)
 		for index := range batchSize {
 			probabilities[index] = mlp.Call(trainInputs[batch[index]])
-			// fmt.Println(index, probabilities[index])
 			classes[index] = int(trainOutputs[batch[index]])
-
-			// lossItem := lossfunctions.SoftmaxCrossEntropy(results, int(target))
-			// loss = loss.Add(lossItem)
 		}
-		// fmt.Println(probabilities)
 		loss := lossfunctions.BatchCrossEntropyTensor(probabilities, classes)
-		// loss = loss.Div(ng.NewValueLiteral(float64(batchSize)))
 
 		fpEnd := time.Now().UnixMilli()
 		fmt.Printf("Epoch = %d, Loss = %.12f\n", epoch, loss.Value)
@@ -143,9 +127,6 @@ func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLPTensor {
 
 		// Backward Pass
 		bpStart := time.Now().UnixMilli()
-		// for _, param := range params {
-		// 	param.Grad = 0
-		// }
 		loss.Backward()
 		bpEnd := time.Now().UnixMilli()
 		fmt.Printf("Backward Pass Time = %f\n", float64(bpEnd-bpStart)/1000)
@@ -164,14 +145,8 @@ func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLPTensor {
 		// printMemStats()
 		// fmt.Println()
 		fmt.Printf("Epoch %d completed in %f. [%f per epoch].\n\n", epoch, float64((upEnd+bpEnd+fpEnd)-(upStart+bpStart+fpStart))/1000, totalTime/float64(epoch+1))
-
-		// f, err := os.Create("mnist.prof")
-		// if err != nil {
-		// 	log.Fatal(err)
-		// }
-		// pprof.WriteHeapProfile(f)
-		// f.Close()
-
+		runtime.GC()
+		perf.PrintMemStats()
 		ng.TValuePool.Reset()
 	}
 

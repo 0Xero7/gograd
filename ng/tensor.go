@@ -447,16 +447,23 @@ func (t *Tensor) Choose(index int) *Tensor {
 func (t *Tensor) Add(other *Tensor) *Tensor {
 	utils.AssertTrue(slices.Equal(t.Shape, other.Shape), "Tensor shapes are not equal for <Add>")
 
-	vals := make([]float64, t.Len())
-	for i := range t.Len() {
+	n := t.Len()
+	vals := make([]float64, n)
+	for i := range n {
 		vals[i] = t.Value[i] + other.Value[i]
 	}
 
 	out := NewTensorFlatWith(vals, t.Shape, "add", t, other)
 	backward := func() {
-		for i := range t.Len() {
-			t.Grad[i] += out.Grad[i]
-			other.Grad[i] += out.Grad[i]
+		grad := out.Grad
+		tGrad := t.Grad
+		otherGrad := other.Grad
+
+		// Use SIMD-friendly loop
+		for i := 0; i < n; i++ {
+			g := grad[i]
+			tGrad[i] += g
+			otherGrad[i] += g
 		}
 	}
 	out.LocalBackward = backward
@@ -473,16 +480,25 @@ func (t *Tensor) Sub(other *Tensor) *Tensor {
 func (t *Tensor) Mul(other *Tensor) *Tensor {
 	utils.AssertTrue(slices.Equal(t.Shape, other.Shape), "Tensor shapes are not equal for <Mul>")
 
-	vals := make([]float64, t.Len())
-	for i := range t.Len() {
+	n := t.Len()
+	vals := make([]float64, n)
+	for i := range n {
 		vals[i] = t.Value[i] * other.Value[i]
 	}
 
 	out := NewTensorFlatWith(vals, t.Shape, "mul", t, other)
 	backward := func() {
-		for i := range t.Len() {
-			t.Grad[i] += other.Value[i] * out.Grad[i]
-			other.Grad[i] += t.Value[i] * out.Grad[i]
+		tGrad := t.Grad
+		oGrad := other.Grad
+
+		tVal := t.Value
+		oVal := other.Value
+
+		outGrad := out.Grad
+
+		for i := range n {
+			tGrad[i] += oVal[i] * outGrad[i]
+			oGrad[i] += tVal[i] * outGrad[i]
 		}
 	}
 	out.LocalBackward = backward
