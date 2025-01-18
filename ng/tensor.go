@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"gograd/utils"
 	"math"
+	"math/rand"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -56,6 +57,7 @@ func NewTensorFlat(values []float64, shape []int) *Tensor {
 
 func NewTensorFlatWith(values []float64, shape []int, op string, children ...*Tensor) *Tensor {
 	tensor, exists := TTensorPool.Get()
+	// fmt.Println(tensor.Id)
 	if !exists {
 		tensor.Value = make([]float64, len(values))
 		tensor.Grad = make([]float64, len(values))
@@ -89,16 +91,18 @@ func Tensor2D(data [][]float64) *Tensor {
 	flattened := make([]float64, rows*cols)
 	for i := range rows {
 		for j := range cols {
-			flattened[rows*i+j] = data[i][j]
+			flattened[cols*i+j] = data[i][j]
 		}
 	}
 	return NewTensorFlat(flattened, []int{rows, cols})
 }
 
 func TensorOnes(shape ...int) *Tensor {
-	size := shape[1]
-	for _, w := range shape[1:] {
-		size *= w
+	size := shape[0]
+	if len(shape) > 1 {
+		for _, w := range shape[1:] {
+			size *= w
+		}
 	}
 
 	vals := make([]float64, size)
@@ -118,6 +122,20 @@ func TensorConst(value float64, shape ...int) *Tensor {
 	vals := make([]float64, size)
 	for i := range vals {
 		vals[i] = value
+	}
+
+	return NewTensorFlat(vals, shape)
+}
+
+func TensorRand(shape ...int) *Tensor {
+	size := shape[0]
+	for _, w := range shape[1:] {
+		size *= w
+	}
+
+	vals := make([]float64, size)
+	for i := range vals {
+		vals[i] = rand.NormFloat64()
 	}
 
 	return NewTensorFlat(vals, shape)
@@ -146,8 +164,8 @@ func (t *Tensor) Dim() int {
 func (t *Tensor) String() string {
 	// Helper function to build nested representation
 	var build func([]int, int, int) string
-	build = func(idx []int, dim int, stride int) string {
-		if dim == len(t.Shape) {
+	build = func(idx []int, axis int, stride int) string {
+		if axis == len(t.Shape) {
 			// Base case: get the actual value
 			flatIdx := 0
 			for i := 0; i < len(idx); i++ {
@@ -159,21 +177,21 @@ func (t *Tensor) String() string {
 		var sb strings.Builder
 		sb.WriteString("[")
 
-		for i := 0; i < t.Shape[dim]; i++ {
-			idx[dim] = i
+		for i := 0; i < t.Shape[axis]; i++ {
+			idx[axis] = i
 			if i > 0 {
 				sb.WriteString(" ")
 			}
-			sb.WriteString(build(idx, dim+1, stride*t.Shape[dim]))
+			sb.WriteString(build(idx, axis+1, stride*t.Shape[axis]))
 		}
 
-		sb.WriteString("]")
+		sb.WriteString("]\n")
 
 		// Add newlines for better formatting of higher dimensions
-		if dim < len(t.Shape)-2 {
+		if axis < len(t.Shape)-2 {
 			sb.WriteString("\n")
 			// Add indentation
-			for i := 0; i <= dim; i++ {
+			for i := 0; i <= axis; i++ {
 				sb.WriteString(" ")
 			}
 		}
@@ -197,6 +215,19 @@ func (t *Tensor) Get(index ...int) float64 {
 	}
 
 	return t.Value[i]
+}
+
+func (t *Tensor) GetGradient(index ...int) float64 {
+	if len(index) != len(t.Shape) {
+		panic("Get index doesn't match tensor dimensions")
+	}
+
+	i := 0
+	for j, stride := range t.Strides {
+		i += index[j] * stride
+	}
+
+	return t.Grad[i]
 }
 
 func (t *Tensor) Set(value float64, index ...int) {
@@ -230,6 +261,7 @@ func (t *Tensor) Reshape(dims ...int) {
 
 func (t *Tensor) Clone() *Tensor {
 	tensor := NewTensorFlat(t.Value, t.Shape)
+	tensor.Id = int(TidGen.Add(1))
 	tensor.Op = t.Op
 	tensor.Children = *t.Children.Clone()
 	copy(tensor.Grad, t.Grad)
@@ -239,6 +271,7 @@ func (t *Tensor) Clone() *Tensor {
 
 func (t *Tensor) CloneWith(op string, children ...*Tensor) *Tensor {
 	tensor := NewTensorFlat(t.Value, t.Shape)
+	tensor.Id = int(TidGen.Add(1))
 	tensor.Op = op
 	tensor.Children = *NewTensorChildrenWith(children)
 	copy(tensor.Grad, t.Grad)
@@ -395,6 +428,98 @@ func (t *Tensor) Sigmoid() *Tensor {
 	return out
 }
 
+func (t *Tensor) SoftMax(axis int) *Tensor {
+	axis = (axis + t.Dim()) % t.Dim()
+
+	out := t.CloneWith("softmax", t)
+
+	sliceIndices := make([]int, t.Dim())
+	for {
+		dimSize := t.Shape[axis]
+		biggest := math.Inf(-1)
+
+		logits := make([]float64, dimSize)
+		for i := range dimSize {
+			sliceIndices[axis] = i
+			elem := t.Get(sliceIndices...)
+			logits[i] = elem
+			// fmt.Println(sliceIndices, elem)
+
+			if elem > biggest {
+				biggest = elem
+			}
+		}
+
+		shiftedSum := 0.0
+		for i := range dimSize {
+			logits[i] = math.Exp(logits[i] - biggest)
+			shiftedSum += logits[i]
+		}
+
+		for i := range dimSize {
+			logits[i] /= shiftedSum
+			sliceIndices[axis] = i
+			out.Set(logits[i], sliceIndices...)
+		}
+
+		if !NextSlicedIndex(t, axis, &sliceIndices) {
+			break
+		}
+	}
+
+	out.LocalBackward = func() {
+		// sliceIndices := make([]int, t.Dim())
+		s := out.Value
+		// for {
+		// dimSize := t.Shape[axis]
+		// n := out.Len()
+
+		// grads := make([]float64, n)
+		for i := range t.Grad {
+			for j := range out.Grad {
+				if i == j {
+					t.Grad[i] += out.Grad[j] * s[i] * (1 - s[i])
+				} else {
+					t.Grad[i] += out.Grad[j] * (-s[i] * s[j])
+				}
+			}
+		}
+
+		// grads := make([]float64, dimSize)
+		// for i := range dimSize {
+		// 	sliceIndices[axis] = i
+		// 	yi := out.Get(sliceIndices...)
+		// 	// fmt.Println("yi=", yi)
+
+		// 	for j := range dimSize {
+		// 		sliceIndices[axis] = j
+		// 		yj := out.Get(sliceIndices...)
+		// 		// fmt.Println("yj=", yj)
+
+		// 		if i == j {
+		// 			grads[j] += yi * (1.0 - yi)
+		// 		} else {
+		// 			grads[j] += -yi * yj
+		// 		}
+		// 		fmt.Println(">>", grads)
+		// 	}
+		// }
+
+		// for i := range dimSize {
+		// 	sliceIndices[axis] = i
+		// 	grads[i] *= out.GetGradient(sliceIndices...)
+		// 	t.Set(t.Get(sliceIndices...)+grads[i], sliceIndices...)
+		// }
+
+		// 	if !NextSlicedIndex(t, axis, &sliceIndices) {
+		// 		break
+		// 	}
+		// }
+	}
+
+	return out
+}
+
 func (t *Tensor) Sum() *Tensor {
 	sum := 0.0
 	for i := range t.Len() {
@@ -452,64 +577,127 @@ func (t *Tensor) Choose(index int) *Tensor {
 	return out
 }
 
-// -----------------------------------------------------------------------------------------------------------------------
+func (t *Tensor) ReshapeOut(dims ...int) *Tensor {
+	out := t.Clone()
+	out.Reshape(dims...)
 
-func (t *Tensor) Add(other *Tensor) *Tensor {
-	utils.AssertTrue(slices.Equal(t.Shape, other.Shape), "Tensor shapes are not equal for <Add>")
-
-	n := t.Len()
-	vals := make([]float64, n)
-	simd.AddFloat64s(vals, t.Value, other.Value)
-
-	out := NewTensorFlatWith(vals, t.Shape, "add", t, other)
-	backward := func() {
-		grad := out.Grad
-		tGrad := t.Grad
-		otherGrad := other.Grad
-
-		// Use SIMD-friendly loop
-		for i := 0; i < n; i++ {
-			g := grad[i]
-			tGrad[i] += g
-			otherGrad[i] += g
+	out.Op = "reshape"
+	out.LocalBackward = func() {
+		for i := range t.Len() {
+			t.Grad[i] += out.Grad[i]
 		}
 	}
-	out.LocalBackward = backward
 
 	return out
 }
 
-func (t *Tensor) Sub(other *Tensor) *Tensor {
-	utils.AssertTrue(slices.Equal(t.Shape, other.Shape), "Tensor shapes are not equal for <Sub>")
+// -----------------------------------------------------------------------------------------------------------------------
 
+func (t *Tensor) MatMul(other *Tensor) *Tensor {
+	utils.AssertTrue(t.Dim() == 2 && other.Dim() == 2, "Can't perform matmul on operands that are not 2D.")
+	utils.AssertTrue(t.Shape[1] == other.Shape[0], fmt.Sprint("Can't perform matmul on matrices of shape ", t.Shape, " and ", other.Shape))
+
+	a := t.Shape[0]
+	b := other.Shape[1]
+	c := t.Shape[1]
+
+	out := TensorConst(0, a, b)
+	for i := range a {
+		for j := range b {
+			elem := 0.0
+			for k := range c {
+				elem += t.Get(i, k) * other.Get(k, j)
+			}
+			out.Set(elem, i, j)
+		}
+	}
+
+	out.Children.Append(t)
+	out.Children.Append(other)
+	out.Op = "matmul"
+	out.LocalBackward = func() {
+		dc := NewTensorFlat(out.Grad, out.Shape)
+		at := t.Transpose(0, 1)
+		bt := other.Transpose(0, 1)
+
+		a_grad := dc.MatMul(bt).Value
+		b_grad := at.MatMul(dc).Value
+
+		simd.AddFloat64s(t.Grad, t.Grad, a_grad)
+		simd.AddFloat64s(other.Grad, other.Grad, b_grad)
+	}
+
+	return out
+}
+
+func (t *Tensor) Add(other *Tensor) *Tensor {
+	addBackward := func(thisValue, thisGrad, otherValue, otherGrad, outValue, outGrad float64) (float64, float64) {
+		return outGrad, outGrad
+	}
+
+	addForward := func(thisValue, otherValue float64) float64 {
+		return thisValue + otherValue
+	}
+
+	return PerformBinaryOp(
+		"add",
+		t, other,
+
+		simd.MulFloat64s,
+		addBackward,
+
+		addForward,
+		addBackward,
+	)
+}
+
+func (t *Tensor) Sub(other *Tensor) *Tensor {
 	return t.Add(other.Negate())
 }
 
 func (t *Tensor) Mul(other *Tensor) *Tensor {
-	utils.AssertTrue(slices.Equal(t.Shape, other.Shape), "Tensor shapes are not equal for <Mul>")
-
-	n := t.Len()
-	vals := make([]float64, n)
-	simd.MulFloat64s(vals, t.Value, other.Value)
-
-	out := NewTensorFlatWith(vals, t.Shape, "mul", t, other)
-	backward := func() {
-		tGrad := t.Grad
-		oGrad := other.Grad
-
-		tVal := t.Value
-		oVal := other.Value
-
-		outGrad := out.Grad
-
-		for i := range n {
-			tGrad[i] += oVal[i] * outGrad[i]
-			oGrad[i] += tVal[i] * outGrad[i]
-		}
+	mulBackward := func(thisValue, thisGrad, otherValue, otherGrad, outValue, outGrad float64) (float64, float64) {
+		return outGrad * otherValue, outGrad * thisValue
 	}
-	out.LocalBackward = backward
 
-	return out
+	mulForward := func(thisValue, otherValue float64) float64 {
+		return thisValue * otherValue
+	}
+
+	return PerformBinaryOp(
+		"mul",
+		t, other,
+
+		simd.MulFloat64s,
+		mulBackward,
+
+		mulForward,
+		mulBackward,
+	)
+	// utils.AssertTrue(slices.Equal(t.Shape, other.Shape), "Tensor shapes are not equal for <Mul>")
+
+	// n := t.Len()
+	// vals := make([]float64, n)
+	// simd.MulFloat64s(vals, t.Value, other.Value)
+
+	// out := NewTensorFlatWith(vals, t.Shape, "mul", t, other)
+	// backward := func() {
+	// 	tGrad := t.Grad
+	// 	oGrad := other.Grad
+
+	// 	tVal := t.Value
+	// 	oVal := other.Value
+
+	// 	outGrad := out.Grad
+
+	// 	for i := range n {
+	// 		tGrad[i] += oVal[i] * outGrad[i]
+	// 		oGrad[i] += tVal[i] * outGrad[i]
+	// 	}
+	// }
+	// out.LocalBackward = backward
+
+	// return out
 }
 
 func (t *Tensor) Div(other *Tensor) *Tensor {
@@ -519,26 +707,56 @@ func (t *Tensor) Div(other *Tensor) *Tensor {
 }
 
 func (t *Tensor) Max(other *Tensor) *Tensor {
-	utils.AssertTrue(slices.Equal(t.Shape, other.Shape), "Tensor shapes are not equal for <Max>")
-
-	vals := make([]float64, t.Len())
-	for i := range t.Len() {
-		vals[i] = math.Max(t.Value[i], other.Value[i])
+	maxFowardFast := func(dst, this, other []float64) []float64 {
+		for i := range dst {
+			dst[i] = math.Max(this[i], other[i])
+		}
+		return dst
 	}
 
-	out := NewTensorFlatWith(vals, t.Shape, "max", t, other)
-	backward := func() {
-		for i := range t.Len() {
-			if t.Value[i] > other.Value[i] {
-				t.Grad[i] += out.Grad[i]
-			} else {
-				other.Grad[i] += out.Grad[i]
-			}
+	maxForward := func(thisValue, otherValue float64) float64 {
+		return math.Max(thisValue, otherValue)
+	}
+
+	maxBackward := func(thisValue, thisGrad, otherValue, otherGrad, outValue, outGrad float64) (float64, float64) {
+		if thisValue > otherValue {
+			return outGrad, 0
+			// t.Grad[i] += out.Grad[i]
+		} else {
+			return 0, outGrad
+			// other.Grad[i] += out.Grad[i]
 		}
 	}
-	out.LocalBackward = backward
 
-	return out
+	return PerformBinaryOp(
+		"max",
+		t, other,
+
+		maxFowardFast,
+		maxBackward,
+		maxForward,
+		maxBackward,
+	)
+	// utils.AssertTrue(slices.Equal(t.Shape, other.Shape), "Tensor shapes are not equal for <Max>")
+
+	// vals := make([]float64, t.Len())
+	// for i := range t.Len() {
+	// 	vals[i] = math.Max(t.Value[i], other.Value[i])
+	// }
+
+	// out := NewTensorFlatWith(vals, t.Shape, "max", t, other)
+	// backward := func() {
+	// 	for i := range t.Len() {
+	// 		if t.Value[i] > other.Value[i] {
+	// 			t.Grad[i] += out.Grad[i]
+	// 		} else {
+	// 			other.Grad[i] += out.Grad[i]
+	// 		}
+	// 	}
+	// }
+	// out.LocalBackward = backward
+
+	// return out
 }
 
 // -----------------------------------------------------------------------------------------------------------------------
@@ -563,16 +781,16 @@ func (t *Tensor) PerformBackward() {
 	}
 }
 
-func (t *Tensor) Backward() {
-	if len(PathT) == 0 {
-		visited := make(map[int]bool)
-		collect := make([]*Tensor, 0)
-		dfsT(t, &visited, &collect)
-		PathT = make([]*Tensor, 0)
-		for i := len(collect) - 1; i >= 0; i-- {
-			PathT = append(PathT, collect[i])
-		}
+func (t *Tensor) Backward(init ...Tensor) {
+	// if len(PathT) == 0 {
+	visited := make(map[int]bool)
+	collect := make([]*Tensor, 0)
+	dfsT(t, &visited, &collect)
+	PathT = make([]*Tensor, 0)
+	for i := len(collect) - 1; i >= 0; i-- {
+		PathT = append(PathT, collect[i])
 	}
+	// }
 
 	pathLen := len(PathT)
 	for i := range pathLen {
@@ -585,8 +803,13 @@ func (t *Tensor) Backward() {
 
 	tGrad := t.Grad
 	tLen := len(tGrad)
-	for i := range tLen {
-		tGrad[i] = 1.0
+
+	if len(init) != 0 {
+		copy(t.Grad, init[0].Value)
+	} else {
+		for i := range tLen {
+			tGrad[i] = 1.0
+		}
 	}
 
 	for i := range pathLen {

@@ -30,7 +30,9 @@ func NewMLPTensor(inputDims int, layers []TensorLayer) *MLPTensor {
 func (m *MLPTensor) Call(inputs *ng.Tensor) *ng.Tensor {
 	t := inputs
 	for _, layer := range m.Layers {
+		// fmt.Printf(">>>>> Layer %d\ninput shape: %v", idx, layer.Parameters()[0].Shape)
 		t = layer.Call(t)
+		// fmt.Printf(" output shape: %v\n\n", t.Shape)
 	}
 	return t
 }
@@ -52,21 +54,34 @@ func (mlp *MLPTensor) Predict(input *ng.Tensor) int {
 	// Forward pass with first input
 	output := mlp.Call(input)
 
-	// Output should be a tensor of shape [OutputDim]
-	if len(output.Shape) != 1 || output.Shape[0] != mlp.OutputDim {
-		panic("Invalid output shape from network")
-	}
+	highestIndex := -1
+	highVal := -10000000000000.0
 
-	// Find max logit
-	maxIdx := 0
-	maxVal := output.Value[0]
-	for i := 1; i < mlp.OutputDim; i++ {
-		if output.Value[i] > maxVal {
-			maxVal = output.Value[i]
-			maxIdx = i
+	for i := range output.Len() {
+		val := output.Value[i]
+		if val > highVal {
+			highVal = val
+			highestIndex = i
 		}
 	}
 
-	ng.TTensorPool.Reset()
-	return maxIdx
+	return highestIndex
+
+	// // Output should be a tensor of shape [OutputDim]
+	// if len(output.Shape) != 1 || output.Shape[0] != mlp.OutputDim {
+	// 	panic("Invalid output shape from network")
+	// }
+
+	// // Find max logit
+	// maxIdx := 0
+	// maxVal := output.Value[0]
+	// for i := 1; i < mlp.OutputDim; i++ {
+	// 	if output.Value[i] > maxVal {
+	// 		maxVal = output.Value[i]
+	// 		maxIdx = i
+	// 	}
+	// }
+
+	// ng.TTensorPool.Reset()
+	// return maxIdx
 }

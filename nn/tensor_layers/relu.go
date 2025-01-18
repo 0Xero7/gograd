@@ -40,9 +40,9 @@ func Tanh(dims int) nn.TensorLayer {
 // }
 
 func (l *ActivationLayer) Call(inputs *ng.Tensor) *ng.Tensor {
-	if inputs.Len() != l.Dim {
-		panic("Input dimensions don't match neuron dimensions")
-	}
+	// if inputs.Dim() != l.Dim {
+	// 	panic("Input dimensions don't match neuron dimensions")
+	// }
 
 	// for i := range l.Dim {
 	switch l.Type {

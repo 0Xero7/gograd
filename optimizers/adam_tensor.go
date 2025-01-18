@@ -29,7 +29,7 @@ func (a *AdamTensor) Step(params []*ng.Tensor) {
 	a.t++
 
 	for _, param := range params {
-		if param == nil || !param.RequiresOptimization {
+		if param == nil { //} || !param.RequiresOptimization {
 			continue
 		}
 

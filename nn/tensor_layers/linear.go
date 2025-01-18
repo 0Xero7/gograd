@@ -1,86 +1,50 @@
 package tensorlayers
 
 import (
+	"fmt"
 	"gograd/ng"
-	"gograd/nn"
 	"gograd/nn/initializers"
+	"gograd/utils"
 	"math"
 )
 
 type LinearLayer struct {
-	NeuronDim int
-	OutDim    int
+	DimIn  int
+	DimOut int
 
-	Neurons []*nn.NeuronTensor
+	Weights *ng.Tensor
+	Bias    *ng.Tensor
 }
 
 // Constructor
-func Linear(neuronDim int, outDim int, init initializers.Initializer) nn.TensorLayer {
+func Linear(inDim int, outDim int, init initializers.Initializer) *LinearLayer {
 	layer := new(LinearLayer)
-	layer.NeuronDim = neuronDim
-	layer.Neurons = make([]*nn.NeuronTensor, outDim)
-	layer.OutDim = outDim
-	factor := 1.0 / math.Sqrt(float64(neuronDim))
+	layer.DimIn = inDim
+	layer.DimOut = outDim
 
-	for i := range outDim {
-		layer.Neurons[i] = nn.NewNeuronTensor(neuronDim)
-		for j := range layer.Neurons[i].Weights.Value {
-			layer.Neurons[i].Weights.Value[j] = init.Sample(neuronDim, outDim) * factor
+	layer.Weights = ng.TensorOnes(inDim, outDim)
+	factor := 1.0 / math.Sqrt(float64(inDim))
+	for x := range inDim {
+		for y := range outDim {
+			layer.Weights.Set(init.Sample(inDim, outDim)*factor, x, y)
 		}
 	}
+	layer.Bias = ng.TensorConst(0, outDim)
+
 	return layer
 }
 
 func (l *LinearLayer) Call(inputs *ng.Tensor) *ng.Tensor {
-	if inputs.Len() != l.NeuronDim {
-		panic("Input dimensions don't match neuron dimensions")
-	}
+	utils.AssertTrue(inputs.Size%l.DimIn == 0, fmt.Sprint("Input tensor of shape ", inputs.Shape, " is not compatible with layer of shape ", l.Weights.Shape))
 
-	// Compute each neuron's output
-	outputs := make([]float64, l.OutDim)
-	results := make([]*ng.Tensor, l.OutDim)
-
-	// Compute remaining neurons and stack their outputs
-	for i := range l.OutDim {
-		neuronOutput := l.Neurons[i].Call(inputs)
-		outputs[i] = neuronOutput.Value[0]
-		results[i] = neuronOutput
-	}
-
-	// Create output tensor with all neuron outputs
-	out := ng.NewTensorFlatWith(outputs, []int{l.OutDim}, "linear_output", results...)
-
-	// Define backward pass to distribute gradients
-	out.LocalBackward = func() {
-		for i := 0; i < l.OutDim; i++ {
-			// Propagate gradients back to each neuron's output
-			results[i].Grad[0] += out.Grad[i]
-		}
-	}
-
-	return out
+	inputFirstDim := inputs.Size / l.DimIn
+	return inputs.ReshapeOut(inputFirstDim, l.DimIn).MatMul(l.Weights).Add(l.Bias)
 }
 
-// func (l *LinearLayer) Call(inputs *ng.Tensor) *ng.Tensor {
-// 	if inputs.Len() != l.NeuronDim {
-// 		panic("Input dimensions don't match neuron dimensions")
-// 	}
-
-// 	// out := make([]*ng.Tensor, l.OutDim)
-// 	// for i := range l.OutDim {
-// 	// 	out[i] = l.Neurons[i].Call(inputs)
-// 	// }
-// 	return
-// }
-
 func (l *LinearLayer) Parameters() []*ng.Tensor {
-	params := make([]*ng.Tensor, 0)
-	for _, n := range l.Neurons {
-		params = append(params, n.Parameters()...)
-	}
-	return params
+	return []*ng.Tensor{l.Weights, l.Bias}
 }
 
 func (l *LinearLayer) FanOut() int {
-	return l.OutDim
+	return l.DimOut
 }

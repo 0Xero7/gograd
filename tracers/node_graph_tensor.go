@@ -17,6 +17,10 @@ func getTensorNodeID(v *ng.Tensor) string {
 }
 
 func TraceTensor(root *ng.Tensor) {
+	TraceTensor2(root, 0)
+}
+
+func TraceTensor2(root *ng.Tensor, idx int) {
 	ctx := context.Background()
 	g, err := graphviz.New(ctx)
 	if err != nil {
@@ -96,5 +100,9 @@ func TraceTensor(root *ng.Tensor) {
 		log.Fatal(err)
 	}
 
-	os.WriteFile("output/graph.dot", buf.Bytes(), os.ModePerm)
+	fmt.Println("[DEBUG]: Writing to ", fmt.Sprint("output/graph_", idx, ".dot"))
+	err = os.WriteFile(fmt.Sprint("output/graph_", idx, ".dot"), buf.Bytes(), os.ModePerm)
+	if err != nil {
+		panic(err)
+	}
 }
