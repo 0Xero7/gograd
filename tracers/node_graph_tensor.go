@@ -32,7 +32,7 @@ func TraceTensor2(root *ng.Tensor, idx int) {
 	}
 
 	// Set graph direction left to right
-	graph.SetRankDir("LR")
+	// graph.SetRankDir("LR")
 
 	defer func() {
 		if err := graph.Close(); err != nil {
@@ -50,7 +50,9 @@ func TraceTensor2(root *ng.Tensor, idx int) {
 
 		// Create value node with box shape
 		node, err := graph.CreateNodeByName(getTensorNodeID(v))
-		node.SetLabel(fmt.Sprintf("%d\ndata=%.4f\ngrad=%.4f", v.Id, v.Value, v.Grad))
+		limit := min(len(v.Value), 10)
+		node.SetLabel(fmt.Sprintf("%d\ndata=%.4f\ngrad=%.8f", v.Id, v.Value[0:limit], v.Grad[0:limit]))
+		// node.SetLabel(fmt.Sprintf("%d", v.Id))
 		node.SetShape("box")
 		node.SetStyle("filled")
 		node.SetFillColor("lightblue")

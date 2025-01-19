@@ -75,10 +75,10 @@ func (a *AdamTensor) Step(params []*ng.Tensor) {
 			a.v[param][index] = a.beta2*a.v[param][index] + (1-a.beta2)*param.Grad[index]*param.Grad[index]
 
 			// Compute bias-corrected first moment estimate
-			mHat := a.m[param][index] / (1 - 0)
+			mHat := a.m[param][index] / (1 - math.Pow(a.beta1, float64(a.t)))
 
 			// Compute bias-corrected second moment estimate
-			vHat := a.v[param][index] / (1 - 0)
+			vHat := a.v[param][index] / (1 - math.Pow(a.beta2, float64(a.t)))
 
 			// Update parameters
 			param.Value[index] -= a.lr * mHat / (math.Sqrt(vHat) + a.epsilon)

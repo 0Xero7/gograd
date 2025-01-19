@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 
 	"github.com/kelindar/simd"
+	"gonum.org/v1/gonum/mat"
 )
 
 type Tensor struct {
@@ -171,7 +172,8 @@ func (t *Tensor) String() string {
 			for i := 0; i < len(idx); i++ {
 				flatIdx += idx[i] * t.Strides[i]
 			}
-			return fmt.Sprintf("id=%d, value=%.4f, grad=%.4f", t.Id, t.Value[flatIdx], t.Grad[flatIdx])
+			// return fmt.Sprintf("id=%d, value=%.4f, grad=%.4f", t.Id, t.Value[flatIdx], t.Grad[flatIdx])
+			return fmt.Sprintf("%.4f, ", t.Value[flatIdx])
 		}
 
 		var sb strings.Builder
@@ -185,7 +187,7 @@ func (t *Tensor) String() string {
 			sb.WriteString(build(idx, axis+1, stride*t.Shape[axis]))
 		}
 
-		sb.WriteString("]\n")
+		sb.WriteString("],\n")
 
 		// Add newlines for better formatting of higher dimensions
 		if axis < len(t.Shape)-2 {
@@ -241,6 +243,19 @@ func (t *Tensor) Set(value float64, index ...int) {
 	}
 
 	t.Value[i] = value
+}
+
+func (t *Tensor) SetGradient(value float64, index ...int) {
+	if len(index) != len(t.Shape) {
+		panic("Get index doesn't match tensor dimensions")
+	}
+
+	i := 0
+	for j, stride := range t.Strides {
+		i += index[j] * stride
+	}
+
+	t.Grad[i] = value
 }
 
 func (t *Tensor) Reshape(dims ...int) {
@@ -468,18 +483,18 @@ func (t *Tensor) SoftMax(axis int) *Tensor {
 	}
 
 	out.LocalBackward = func() {
-		copy(t.Grad, out.Grad)
+		// copy(t.Grad, out.Grad)
 
-		// s := out.Value
-		// for i := range t.Grad {
-		// 	for j := range out.Grad {
-		// 		if i == j {
-		// 			t.Grad[i] += out.Grad[j] * s[i] * (1 - s[i])
-		// 		} else {
-		// 			t.Grad[i] += out.Grad[j] * (-s[i] * s[j])
-		// 		}
-		// 	}
-		// }
+		s := out.Value
+		for i := range t.Grad {
+			for j := range out.Grad {
+				if i == j {
+					t.Grad[i] += out.Grad[j] * s[i] * (1 - s[i])
+				} else {
+					t.Grad[i] += out.Grad[j] * (-s[i] * s[j])
+				}
+			}
+		}
 	}
 
 	return out
@@ -545,6 +560,8 @@ func (t *Tensor) Choose(index int) *Tensor {
 func (t *Tensor) ReshapeOut(dims ...int) *Tensor {
 	out := t.Clone()
 	out.Reshape(dims...)
+	out.Children.Clear()
+	out.Children.Append(t)
 
 	out.Op = "reshape"
 	out.LocalBackward = func() {
@@ -558,51 +575,42 @@ func (t *Tensor) ReshapeOut(dims ...int) *Tensor {
 
 // -----------------------------------------------------------------------------------------------------------------------
 
+func fastMatrixMultiply(a, b *Tensor) []float64 {
+	c := mat.NewDense(a.Shape[0], a.Shape[1], a.Value)
+	d := mat.NewDense(b.Shape[0], b.Shape[1], b.Value)
+	var res mat.Dense
+	res.Mul(c, d)
+	return res.RawMatrix().Data
+}
+
+func fastMatrixMultiplyRaw(a, b mat.Matrix) []float64 {
+	var res mat.Dense
+	res.Mul(a, b)
+	return res.RawMatrix().Data
+}
+
 func (t *Tensor) MatMul(other *Tensor) *Tensor {
-    utils.AssertTrue(t.Dim() == 2 && other.Dim() == 2, "Can't perform matmul on operands that are not 2D.")
-    utils.AssertTrue(t.Shape[1] == other.Shape[0], fmt.Sprint("Can't perform matmul on matrices of shape ", t.Shape, " and ", other.Shape))
+	utils.AssertTrue(t.Dim() == 2 && other.Dim() == 2, "Can't perform matmul on operands that are not 2D.")
+	utils.AssertTrue(t.Shape[1] == other.Shape[0], fmt.Sprint("Can't perform matmul on matrices of shape ", t.Shape, " and ", other.Shape))
 
-    m, n, k := t.Shape[0], other.Shape[1], t.Shape[1]
-    out := TensorConst(0, m, n)
+	out := NewTensorFlat(fastMatrixMultiply(t, other), []int{t.Shape[0], other.Shape[1]})
 
-    // Process matrix multiplication in blocks for better cache utilization
-    for i := 0; i < m; i++ {
-        for j := 0; j < n; j += 4 {
-            sum := make([]float64, 4)
-            remaining := min(4, n-j)
+	out.Children.Append(t)
+	out.Children.Append(other)
+	out.Op = "matmul"
+	out.LocalBackward = func() {
+		dc := mat.NewDense(out.Shape[0], out.Shape[1], out.Grad)
+		at := mat.NewDense(t.Shape[0], t.Shape[1], t.Value)
+		bt := mat.NewDense(other.Shape[0], other.Shape[1], other.Value)
 
-            // Compute 4 elements at once using SIMD
-            for l := 0; l < k; l++ {
-                aVal := t.Get(i, l)
-                for r := 0; r < remaining; r++ {
-                    bVal := other.Get(l, j+r)
-                    sum[r] += aVal * bVal
-                }
-            }
+		a_grad := fastMatrixMultiplyRaw(dc, bt.T())
+		b_grad := fastMatrixMultiplyRaw(at.T(), dc)
 
-            // Store results
-            for r := 0; r < remaining; r++ {
-                out.Set(sum[r], i, j+r)
-            }
-        }
-    }
+		simd.AddFloat64s(t.Grad, t.Grad, a_grad)
+		simd.AddFloat64s(other.Grad, other.Grad, b_grad)
+	}
 
-    out.Children.Append(t)
-    out.Children.Append(other)
-    out.Op = "matmul"
-    out.LocalBackward = func() {
-        dc := NewTensorFlat(out.Grad, out.Shape)
-        at := t.Transpose(0, 1)
-        bt := other.Transpose(0, 1)
-
-        a_grad := dc.MatMul(bt).Value
-        b_grad := at.MatMul(dc).Value
-
-        simd.AddFloat64s(t.Grad, t.Grad, a_grad)
-        simd.AddFloat64s(other.Grad, other.Grad, b_grad)
-    }
-
-    return out
+	return out
 }
 
 // -----------------------------------------------------------------------------------------------------------------------
@@ -713,15 +721,15 @@ func (t *Tensor) PerformBackward() {
 }
 
 func (t *Tensor) Backward(init ...Tensor) {
-	if len(PathT) == 0 {
-		visited := make(map[int]bool)
-		collect := make([]*Tensor, 0)
-		dfsT(t, &visited, &collect)
-		PathT = make([]*Tensor, 0)
-		for i := len(collect) - 1; i >= 0; i-- {
-			PathT = append(PathT, collect[i])
-		}
+	// if len(PathT) == 0 {
+	visited := make(map[int]bool)
+	collect := make([]*Tensor, 0)
+	dfsT(t, &visited, &collect)
+	PathT = make([]*Tensor, 0)
+	for i := len(collect) - 1; i >= 0; i-- {
+		PathT = append(PathT, collect[i])
 	}
+	// }
 
 	pathLen := len(PathT)
 	for i := range pathLen {

@@ -136,7 +136,7 @@ func TrainIris(iterations, batchSize int, learningRate float64) *nn.MLPTensor {
 		// target := int(trainOutputs[index])
 		// }
 
-		loss := lossfunctions.CrossEntropyLoss(output, trainOutputs)
+		loss := lossfunctions.NegativeLogLoss(output, trainOutputs)
 
 		fpEnd := time.Now().UnixMilli()
 		// fmt.Printf("Epoch = %d, Loss = %.12f\n", epoch, loss.Value)

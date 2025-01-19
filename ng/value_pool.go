@@ -20,28 +20,32 @@ func NewValuePool[T any](factory func(index int) *T) ValuePool[T] {
 }
 
 func (v *ValuePool[T]) Get() (*T, bool) {
-	if v.ptr == v.capacity {
-		newSize := v.capacity
-		if newSize == 0 {
-			newSize = 1
-		} else {
-			newSize = newSize * 2
-		}
-		v.capacity = newSize
-
-		newPool := make([]*T, newSize)
-		copy(newPool[0:v.capacity], v.pool)
-		v.pool = newPool
-	}
-
-	obj := v.pool[v.ptr]
-	exists := obj != nil
-	if obj == nil {
-		obj = v.factory(v.ptr)
-		v.pool[v.ptr] = obj
-	}
+	obj := v.factory(v.ptr)
 	v.ptr++
-	return obj, exists
+	return obj, false
+
+	// if v.ptr == v.capacity {
+	// 	newSize := v.capacity
+	// 	if newSize == 0 {
+	// 		newSize = 1
+	// 	} else {
+	// 		newSize = newSize * 2
+	// 	}
+	// 	v.capacity = newSize
+
+	// 	newPool := make([]*T, newSize)
+	// 	copy(newPool[0:v.capacity], v.pool)
+	// 	v.pool = newPool
+	// }
+
+	// obj := v.pool[v.ptr]
+	// exists := obj != nil
+	// if obj == nil {
+	// 	obj = v.factory(v.ptr)
+	// 	v.pool[v.ptr] = obj
+	// }
+	// v.ptr++
+	// return obj, exists
 }
 
 func (v *ValuePool[T]) Reset() {

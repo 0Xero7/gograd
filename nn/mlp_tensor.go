@@ -45,6 +45,14 @@ func (m *MLPTensor) Parameters() []*ng.Tensor {
 	return params
 }
 
+func (m *MLPTensor) ParameterCount() int {
+	count := 0
+	for _, n := range m.Layers {
+		count += n.ParameterCount()
+	}
+	return count
+}
+
 // Get predictions for a single input
 func (mlp *MLPTensor) Predict(input *ng.Tensor) int {
 	if input.Len() == 0 {

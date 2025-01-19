@@ -167,6 +167,7 @@ func PerformBinaryOp(
 }
 
 func NextSlicedIndex(t *Tensor, axis int, indices *[]int) bool {
+	axis = (axis + t.Dim()) % t.Dim()
 	hasNext := false
 	for i := t.Dim() - 1; i >= 0; i-- {
 		if axis == i {
@@ -188,6 +189,42 @@ func NextSlicedIndex(t *Tensor, axis int, indices *[]int) bool {
 	}
 
 	return hasNext
+}
+
+func NextSlicedIndexMultiAxis(t *Tensor, indices *[]int, axes ...int) bool {
+	for i := range axes {
+		axes[i] = (axes[i] + t.Dim()) % t.Dim()
+	}
+	hasNext := false
+
+	for i := t.Dim() - 1; i >= 0; i-- {
+		if slices.Contains(axes, i) {
+			continue
+		}
+
+		(*indices)[i]++
+		if (*indices)[i] == t.Shape[i] {
+			(*indices)[i] = 0
+			continue
+		}
+
+		hasNext = true
+		break
+	}
+
+	if !hasNext {
+		for i := range axes {
+			(*indices)[i] = 0
+		}
+	}
+
+	return hasNext
+}
+
+func OneHot(index, total int) []float64 {
+	w := make([]float64, total)
+	w[index] = 1.0
+	return w
 }
 
 // func IterateOverSlice(t *Tensor, axis int, iterator func(flatIndices *[][]int)) {

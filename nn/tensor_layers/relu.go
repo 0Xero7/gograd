@@ -61,6 +61,10 @@ func (l *ActivationLayer) Parameters() []*ng.Tensor {
 	return []*ng.Tensor{}
 }
 
+func (l *ActivationLayer) ParameterCount() int {
+	return 0
+}
+
 func (l *ActivationLayer) FanOut() int {
 	return l.Dim
 }

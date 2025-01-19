@@ -45,6 +45,10 @@ func (l *LinearLayer) Parameters() []*ng.Tensor {
 	return []*ng.Tensor{l.Weights, l.Bias}
 }
 
+func (l *LinearLayer) ParameterCount() int {
+	return l.Weights.Len() + l.Bias.Len()
+}
+
 func (l *LinearLayer) FanOut() int {
 	return l.DimOut
 }

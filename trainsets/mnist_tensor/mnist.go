@@ -32,15 +32,15 @@ func printMemStats() {
 	fmt.Printf("Total Alloc = %v MB\n", bToMb(m.TotalAlloc))
 }
 
-var trainInputs []*ng.Tensor
-var trainOutputs []int
+var trainInputs [][]float64
+var trainOutputs [][]float64
 
-var testInputs []*ng.Tensor
-var testOutputs []int
+var testInputs [][]float64
+var testOutputs [][]float64
 
 func LoadDataset() {
-	allInputs := make([]*ng.Tensor, 0)
-	allOutputs := make([]int, 0)
+	allInputs := make([][]float64, 0)
+	allOutputs := make([][]float64, 0)
 
 	fmt.Println("Loading dataset...")
 	for num := range 10 {
@@ -60,8 +60,8 @@ func LoadDataset() {
 					dataValues = append(dataValues, float64(r))
 				}
 			}
-			allInputs = append(allInputs, ng.NewTensorFlat(dataValues, []int{len(dataValues)}))
-			allOutputs = append(allOutputs, num)
+			allInputs = append(allInputs, dataValues)
+			allOutputs = append(allOutputs, ng.OneHot(num, 10))
 		}
 	}
 
@@ -85,18 +85,16 @@ func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLPTensor {
 		tensorlayers.Linear(512, 256, &initializers.HeInitializer{}),
 		tensorlayers.ReLu(256),
 
-		tensorlayers.Linear(256, 64, &initializers.HeInitializer{}),
-		tensorlayers.ReLu(64),
+		tensorlayers.Linear(256, 128, &initializers.HeInitializer{}),
+		tensorlayers.ReLu(128),
 
-		tensorlayers.Linear(64, 10, &initializers.SimpleInitializer{}),
-		tensorlayers.SoftMax(10),
+		tensorlayers.Linear(128, 10, &initializers.XavierInitializer{}),
 	})
-	ng.TTensorPool.Mark()
+	// ng.TTensorPool.Mark()
 
 	params := mlp.Parameters()
 	fmt.Println("Created MLP")
 	printMemStats()
-	ng.TValuePool.Mark()
 
 	adam := optimizers.NewAdamTensor(learningRate)
 
@@ -104,24 +102,42 @@ func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLPTensor {
 
 	for epoch := range iterations {
 		batch := make([]int, 0)
+
+		xsf := make([][]float64, batchSize)
+		ysf := make([][]float64, batchSize)
+
+		batchIndex := 0
 		for len(batch) < batchSize {
 			r := rand.Intn(len(trainInputs))
 			if slices.Contains(batch, r) {
 				continue
 			}
 			batch = append(batch, r)
+
+			xsf[batchIndex] = trainInputs[r]
+			ysf[batchIndex] = trainOutputs[r]
+			batchIndex++
 		}
 
 		// Forward Pass
 		fpStart := time.Now().UnixMilli()
 
-		probabilities := make([]*ng.Tensor, batchSize)
-		classes := make([]int, batchSize)
-		for index := range batchSize {
-			probabilities[index] = mlp.Call(trainInputs[batch[index]])
-			classes[index] = int(trainOutputs[batch[index]])
-		}
-		loss := lossfunctions.BatchCrossEntropyTensor(probabilities, classes)
+		// probabilities := make([]*ng.Tensor, batchSize)
+		// classes := make([]int, batchSize)
+
+		xs := ng.Tensor2D(xsf)
+		ys := ng.Tensor2D(ysf)
+
+		// for index := range batchSize {
+		// probabilities[index] = mlp.Call(trainInputs[batch[index]])
+		// classes[index] = int(trainOutputs[batch[index]])
+		// }
+
+		logits := mlp.Call(xs)
+
+		fmt.Println(logits.Shape, ys.Shape)
+
+		loss := lossfunctions.TensorCrossEntropyProbDist(logits, ys)
 
 		fpEnd := time.Now().UnixMilli()
 		fmt.Printf("Epoch = %d, Loss = %.12f\n", epoch, loss.Value)
@@ -132,6 +148,10 @@ func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLPTensor {
 		loss.Backward()
 		bpEnd := time.Now().UnixMilli()
 		fmt.Printf("Backward Pass Time = %f\n", float64(bpEnd-bpStart)/1000)
+
+		// if epoch == 30 {
+		// 	tracers.TraceTensor2(loss, epoch)
+		// }
 
 		// Update
 		upStart := time.Now().UnixMilli()
@@ -149,12 +169,25 @@ func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLPTensor {
 		fmt.Printf("Epoch %d completed in %f. [%f per epoch].\n\n", epoch, float64((upEnd+bpEnd+fpEnd)-(upStart+bpStart+fpStart))/1000, totalTime/float64(epoch+1))
 		runtime.GC()
 
-		ng.TTensorPool.Reset()
+		// ng.TTensorPool.Reset()
 		perf.PrintMemStats()
-		ng.TValuePool.Reset()
 	}
 
 	return mlp
+}
+
+func argmax(vals []float64) int {
+	best := -1
+	bestVal := -100000000000.0
+
+	for i := range vals {
+		if vals[i] > bestVal {
+			bestVal = vals[i]
+			best = i
+		}
+	}
+
+	return best
 }
 
 func TestMNIST(mlp *nn.MLPTensor) {
@@ -163,8 +196,10 @@ func TestMNIST(mlp *nn.MLPTensor) {
 	testAccuracy := 0
 	total := len(trainInputs) + len(testInputs)
 	for i := range len(trainInputs) {
-		class := mlp.Predict(trainInputs[i])
-		if class == int(trainOutputs[i]) {
+		// ng.TTensorPool.ClearUptoMark()
+
+		class := mlp.Call(ng.Tensor2D([][]float64{trainInputs[i]}))
+		if argmax(class.Value) == argmax(trainOutputs[i]) {
 			accuracy++
 			trainAccuracy++
 		}
@@ -175,8 +210,8 @@ func TestMNIST(mlp *nn.MLPTensor) {
 		}
 	}
 	for i := range len(testInputs) {
-		class := mlp.Predict(testInputs[i])
-		if class == int(testOutputs[i]) {
+		class := mlp.Call(ng.Tensor2D([][]float64{testInputs[i]}))
+		if argmax(class.Value) == argmax(testOutputs[i]) {
 			accuracy++
 			testAccuracy++
 		}
@@ -189,5 +224,5 @@ func TestMNIST(mlp *nn.MLPTensor) {
 	fmt.Println(accuracy, "out of", total, "correct. ", (float64(accuracy)*100.0)/float64(total))
 	fmt.Printf("Train accuracy: [%d] of [%d] = %.2f\n", trainAccuracy, len(trainInputs), float64(trainAccuracy)/float64(len(trainInputs)))
 	fmt.Printf("Test accuracy: [%d] of [%d] = %.2f\n", testAccuracy, len(testInputs), float64(testAccuracy)/float64(len(testInputs)))
-	fmt.Println("# params:", len(mlp.Parameters()))
+	fmt.Println("# params:", mlp.ParameterCount())
 }
