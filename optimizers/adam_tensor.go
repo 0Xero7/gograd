@@ -11,6 +11,8 @@ type AdamTensor struct {
 	epsilon      float64
 	m, v         map[*ng.Tensor][]float64
 	t            int
+
+	effectiveBeta1, effectiveBeta2 float64
 }
 
 func NewAdamTensor(lr float64) *AdamTensor {
@@ -22,11 +24,35 @@ func NewAdamTensor(lr float64) *AdamTensor {
 		m:       make(map[*ng.Tensor][]float64),
 		v:       make(map[*ng.Tensor][]float64),
 		t:       0,
+
+		effectiveBeta1: 0.9,
+		effectiveBeta2: 0.999,
 	}
 }
 
+func binPow(inp float64, power int) float64 {
+	if power == 0 {
+		return 1
+	}
+	if power == 1 {
+		return inp
+	}
+
+	m := binPow(inp, power/2)
+	m = m * m
+	if power%2 == 1 {
+		m = m * inp
+	}
+	return m
+}
+
 func (a *AdamTensor) Step(params []*ng.Tensor) {
+	// fmt.Println("UwU")
 	a.t++
+	a.effectiveBeta1 *= a.beta1
+	a.effectiveBeta2 *= a.beta2
+	// mHatD := a.beta1 * 0.9   // binPow(a.beta1, a.t)
+	// vHatD := a.beta2 * 0.999 // binPow(a.beta2, a.t)
 
 	for _, param := range params {
 		if param == nil { //} || !param.RequiresOptimization {
@@ -49,10 +75,10 @@ func (a *AdamTensor) Step(params []*ng.Tensor) {
 			a.v[param][index] = a.beta2*a.v[param][index] + (1-a.beta2)*param.Grad[index]*param.Grad[index]
 
 			// Compute bias-corrected first moment estimate
-			mHat := a.m[param][index] / (1 - math.Pow(a.beta1, float64(a.t)))
+			mHat := a.m[param][index] / (1 - 0)
 
 			// Compute bias-corrected second moment estimate
-			vHat := a.v[param][index] / (1 - math.Pow(a.beta2, float64(a.t)))
+			vHat := a.v[param][index] / (1 - 0)
 
 			// Update parameters
 			param.Value[index] -= a.lr * mHat / (math.Sqrt(vHat) + a.epsilon)

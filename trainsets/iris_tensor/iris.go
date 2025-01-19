@@ -106,6 +106,8 @@ func TrainIris(iterations, batchSize int, learningRate float64) *nn.MLPTensor {
 		tensorlayers.SoftMax(3),
 	})
 
+	ng.TTensorPool.Mark()
+
 	optimizer := optimizers.NewAdamTensor(learningRate)
 
 	totalTime := 0.0
@@ -170,13 +172,13 @@ func TrainIris(iterations, batchSize int, learningRate float64) *nn.MLPTensor {
 			fmt.Printf("Epoch %d completed in %f. [%f per epoch] Loss = %.4f.\n\n", epoch, float64((upEnd+bpEnd+fpEnd)-(upStart+bpStart+fpStart))/1000, totalTime/float64(epoch+1), loss.Value)
 		}
 
-		// tracers.TraceTensor2(loss, epoch)
 		// if epoch == iterations-1 {
-		// fmt.Println("UwU")
+		// 	tracers.TraceTensor2(loss, epoch)
+		// 	fmt.Println("UwU")
 		// }
 		// fmt.Println(ng.IdGen.Load())
 		loss = nil
-		// ng.TValuePool.Reset()
+		ng.TTensorPool.Reset()
 	}
 
 	return mlp
@@ -210,6 +212,8 @@ func TestIris(mlp *nn.MLPTensor) {
 	// 	}
 	// }
 	for i := range len(testInputs) {
+		ng.TTensorPool.ClearUptoMark()
+
 		class := mlp.Predict(testInputs[i])
 		fmt.Printf("Output #%d: Actual: %v Got: %d\n", i, argmax(testOutputs[i].Value), class)
 		if class == argmax(testOutputs[i].Value) {

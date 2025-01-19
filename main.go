@@ -3,8 +3,11 @@ package main
 import (
 	"flag"
 	iristensor "gograd/trainsets/iris_tensor"
+	"log"
 	"math/rand"
 	_ "net/http/pprof"
+	"os"
+	"runtime/pprof"
 )
 
 var memprofile = flag.String("memprofile", "", "write memory profile to file")
@@ -79,19 +82,20 @@ func main() {
 	// fmt.Println(out)
 	// fmt.Println(out.Shape)
 
+	f, _ := os.Create("cpu.prof")
+	defer f.Close() // error handling omitted for example
+	if err := pprof.StartCPUProfile(f); err != nil {
+		log.Fatal("could not start CPU profile: ", err)
+	}
+
 	iristensor.LoadAndSplitDataset()
 	mlp2 := iristensor.TrainIris(5000, 100, 0.01)
 	iristensor.TestIris(mlp2)
 
 	// mnisttensor.LoadDataset()
-	// f, _ := os.Create("cpu.prof")
-	// defer f.Close() // error handling omitted for example
 
-	// if err := pprof.StartCPUProfile(f); err != nil {
-	// 	log.Fatal("could not start CPU profile: ", err)
-	// }
 	// mlp3 := mnisttensor.TrainMNIST(50, 512, 0.00001)
-	// pprof.StopCPUProfile()
+	pprof.StopCPUProfile()
 
 	// mnisttensor.TestMNIST(mlp3)
 }
