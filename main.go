@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"gograd/trainsets/bigram"
+	"gograd/trainsets/ngram"
 	"log"
 	"math/rand"
 	"net/http"
@@ -36,11 +36,16 @@ func main() {
 	// mlp3 := mnisttensor.TrainMNIST(300, 1500, 0.00001)
 	// mnisttensor.TestMNIST(mlp3)
 
-	bigram.LoadDataset()
-	mlp := bigram.TrainBigram(50, 32000, 0.1)
+	// bigram.LoadDataset()
+	// mlp := bigram.TrainBigram(50, 32000, 0.1)
+	// for range 10 {
+	// 	bigram.Predict(mlp, "#")
+	// }
 
+	ngram.LoadDataset(8)
+	mlp := ngram.TrainNgram(8, 50, 32000, 0.1)
 	for range 10 {
-		bigram.Predict(mlp, "#")
+		ngram.Predict(mlp, 8)
 	}
 
 	pprof.StopCPUProfile()
