@@ -84,8 +84,10 @@ func TrainNgram(gram, iterations, batchSize int, learningRate float64) *nn.MLPTe
 	vocabSize = len(vocab)
 
 	mlp := nn.NewMLPTensor(gram*vocabSize, []nn.TensorLayer{
-		tensorlayers.Linear(gram*vocabSize, vocabSize, &initializers.XavierInitializer{}),
-		// tensorlayers.Tanh(512),
+		tensorlayers.Linear(gram*vocabSize, 200, &initializers.XavierInitializer{}),
+		tensorlayers.Tanh(200),
+
+		tensorlayers.Linear(200, vocabSize, &initializers.XavierInitializer{}),
 
 		// tensorlayers.Linear(512, 128, &initializers.XavierInitializer{}),
 		// tensorlayers.Tanh(128),

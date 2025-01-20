@@ -43,7 +43,7 @@ func main() {
 	// }
 
 	ngram.LoadDataset(8)
-	mlp := ngram.TrainNgram(8, 50, 32000, 0.1)
+	mlp := ngram.TrainNgram(8, 5000, 320, 0.001)
 	for range 10 {
 		ngram.Predict(mlp, 8)
 	}
