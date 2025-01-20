@@ -55,7 +55,7 @@ func (a *AdamTensor) Step(params []*ng.Tensor) {
 	// vHatD := a.beta2 * 0.999 // binPow(a.beta2, a.t)
 
 	for _, param := range params {
-		if param == nil { //} || !param.RequiresOptimization {
+		if param == nil || !param.RequiresOptimization {
 			continue
 		}
 

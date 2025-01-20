@@ -17,7 +17,6 @@ import (
 	lossfunctions "gograd/nn/loss_functions"
 	tensorlayers "gograd/nn/tensor_layers"
 	"gograd/optimizers"
-	"gograd/perf"
 )
 
 func printMemStats() {
@@ -167,10 +166,7 @@ func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLPTensor {
 		// printMemStats()
 		// fmt.Println()
 		fmt.Printf("Epoch %d completed in %f. [%f per epoch].\n\n", epoch, float64((upEnd+bpEnd+fpEnd)-(upStart+bpStart+fpStart))/1000, totalTime/float64(epoch+1))
-		runtime.GC()
 
-		// ng.TTensorPool.Reset()
-		perf.PrintMemStats()
 	}
 
 	return mlp

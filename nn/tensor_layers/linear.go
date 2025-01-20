@@ -23,6 +23,7 @@ func Linear(inDim int, outDim int, init initializers.Initializer) *LinearLayer {
 	layer.DimOut = outDim
 
 	layer.Weights = ng.TensorOnes(inDim, outDim)
+	layer.Weights.RequiresOptimization = true
 	factor := 1.0 / math.Sqrt(float64(inDim))
 	for x := range inDim {
 		for y := range outDim {
@@ -30,6 +31,7 @@ func Linear(inDim int, outDim int, init initializers.Initializer) *LinearLayer {
 		}
 	}
 	layer.Bias = ng.TensorConst(0, outDim)
+	layer.Bias.RequiresOptimization = true
 
 	return layer
 }
