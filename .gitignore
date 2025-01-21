@@ -9,3 +9,5 @@ testSet/
 makemore/
 
 *.png
+profile001.callgraph.out
+cpu.prof
