@@ -389,13 +389,14 @@ func (t *Tensor) Tanh() *Tensor {
 	vals := make([]float64, t.Len())
 	for i := range t.Len() {
 		x := t.Value[i]
-		if x > 5 {
-			vals[i] = 1.0
-		} else if x < -5 {
-			vals[i] = -1.0
-		} else {
-			vals[i] = math.Tanh(x)
-		}
+		vals[i] = 1 - (2 * (1 / (1 + math.Exp(x*2))))
+		// if x > 5 {
+		// 	vals[i] = 1.0
+		// } else if x < -5 {
+		// 	vals[i] = -1.0
+		// } else {
+		// 	vals[i] = math.Tanh(x)
+		// }
 	}
 
 	out := NewTensorFlatWith(vals, t.Shape, "tanh", t)
