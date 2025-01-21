@@ -21,6 +21,7 @@ var vocabMap map[string]int
 var reverseVocabMap map[int]string
 var vocabSize int
 
+var embeddingSize int = 3
 var embeddings [][]float64
 
 func runeToToken(r string) int {
@@ -79,19 +80,21 @@ func LoadDataset(gram int) {
 		vocab = append(vocab, k)
 		vocabMap[k] = len(vocabMap)
 		reverseVocabMap[vocabMap[k]] = k
-		embeddings = append(embeddings, ng.TensorRand(2).Value)
+		embeddings = append(embeddings, ng.TensorRand(embeddingSize).Value)
 	}
 }
 
 func TrainNgram(gram, iterations, batchSize int, learningRate float64) *nn.MLPTensor {
 	vocabSize = len(vocab)
 
-	mlp := nn.NewMLPTensor(gram*2, []nn.TensorLayer{
-		tensorlayers.Linear(gram*2, 200, &initializers.HeInitializer{}),
-		tensorlayers.Tanh(200),
+	mlp := nn.NewMLPTensor(gram*embeddingSize, []nn.TensorLayer{
+		tensorlayers.Linear(gram*embeddingSize, 400, &initializers.HeInitializer{}),
+		tensorlayers.Tanh(400),
 
-		tensorlayers.Linear(200, vocabSize, &initializers.XavierInitializer{}),
+		tensorlayers.Linear(400, vocabSize, &initializers.XavierInitializer{}),
 	})
+
+	fmt.Println(mlp.ParameterCount())
 
 	optimizer := optimizers.NewAdamTensor(learningRate)
 
