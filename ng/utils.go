@@ -136,10 +136,15 @@ func PerformBinaryOp(
 		totalSize *= dim
 	}
 
+	cachedIndices := make([]int, 2*totalSize)
+
 	// Perform addition with broadcasting
 	vals := make([]float64, totalSize)
+	index := 0
 	for i := 0; i < totalSize; i++ {
 		idx1, idx2 := GetBroadcastIndices(i, outShape, t1Strides, t2Strides)
+		cachedIndices[index], cachedIndices[index+1] = idx1, idx2
+		index += 2
 		vals[i] = forward(this.Value[idx1], other.Value[idx2])
 		// vals[i] = this.Value[idx1] + other.Value[idx2]
 	}
@@ -148,8 +153,10 @@ func PerformBinaryOp(
 
 	// Backward pass uses the same broadcast indices
 	out.LocalBackward = func() {
+		index := 0
 		for i := 0; i < totalSize; i++ {
-			idx1, idx2 := GetBroadcastIndices(i, outShape, t1Strides, t2Strides)
+			idx1, idx2 := cachedIndices[index], cachedIndices[index+1] // GetBroadcastIndices(i, outShape, t1Strides, t2Strides)
+			index += 2
 			thisDelta, otherDelta := fastPathBackward(
 				this.Value[idx1], this.Grad[idx1],
 				other.Value[idx2], other.Grad[idx2],

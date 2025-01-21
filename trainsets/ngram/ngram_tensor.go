@@ -21,6 +21,8 @@ var vocabMap map[string]int
 var reverseVocabMap map[int]string
 var vocabSize int
 
+var embeddings [][]float64
+
 func runeToToken(r string) int {
 	return vocabMap[r]
 }
@@ -77,14 +79,15 @@ func LoadDataset(gram int) {
 		vocab = append(vocab, k)
 		vocabMap[k] = len(vocabMap)
 		reverseVocabMap[vocabMap[k]] = k
+		embeddings = append(embeddings, ng.TensorRand(2).Value)
 	}
 }
 
 func TrainNgram(gram, iterations, batchSize int, learningRate float64) *nn.MLPTensor {
 	vocabSize = len(vocab)
 
-	mlp := nn.NewMLPTensor(gram*vocabSize, []nn.TensorLayer{
-		tensorlayers.Linear(gram*vocabSize, 200, &initializers.XavierInitializer{}),
+	mlp := nn.NewMLPTensor(gram*2, []nn.TensorLayer{
+		tensorlayers.Linear(gram*2, 200, &initializers.XavierInitializer{}),
 		tensorlayers.Tanh(200),
 
 		tensorlayers.Linear(200, vocabSize, &initializers.XavierInitializer{}),
@@ -115,7 +118,7 @@ func TrainNgram(gram, iterations, batchSize int, learningRate float64) *nn.MLPTe
 			for j := 0; j+gram < len(str); j++ {
 				for delta := range gram {
 					a := runeToToken(string(str[j+delta]))
-					xsi = append(xsi, ng.OneHot(a, vocabSize))
+					xsi = append(xsi, embeddings[a]) //ng.OneHot(a, vocabSize))
 				}
 				r := runeToToken(string(str[j+gram]))
 				ysi = append(ysi, ng.OneHot(r, vocabSize))
@@ -136,12 +139,14 @@ func TrainNgram(gram, iterations, batchSize int, learningRate float64) *nn.MLPTe
 
 		lossValue := loss.Value[0]
 		loss = nil
-		runtime.GC()
 
 		// ng.TTensorPool.Reset()
-		perf.PrintMemStats()
 
-		fmt.Printf("Epoch %d complete. Loss = %.4f\n", epoch+1, lossValue)
+		if epoch%100 == 0 {
+			runtime.GC()
+			perf.PrintMemStats()
+			fmt.Printf("Epoch %d complete. Loss = %.4f\n", epoch+1, lossValue)
+		}
 	}
 
 	return mlp
@@ -171,7 +176,7 @@ func Predict(mlp *nn.MLPTensor, gram int) {
 	for {
 		xsi := make([][]float64, 0)
 		for i := range gram {
-			xsi = append(xsi, ng.OneHot(runeToToken(string(input[i])), vocabSize))
+			xsi = append(xsi, embeddings[runeToToken(string(input[i]))])
 		}
 
 		xs := ng.Tensor2D(xsi)

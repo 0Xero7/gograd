@@ -42,10 +42,10 @@ func main() {
 	// 	bigram.Predict(mlp, "#")
 	// }
 
-	ngram.LoadDataset(8)
-	mlp := ngram.TrainNgram(8, 5000, 320, 0.001)
+	ngram.LoadDataset(3)
+	mlp := ngram.TrainNgram(3, 1000, 320, 0.001)
 	for range 10 {
-		ngram.Predict(mlp, 8)
+		ngram.Predict(mlp, 3)
 	}
 
 	pprof.StopCPUProfile()
