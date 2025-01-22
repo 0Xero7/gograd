@@ -155,7 +155,7 @@ func PerformBinaryOp(
 	out.LocalBackward = func() {
 		index := 0
 		for i := 0; i < totalSize; i++ {
-			idx1, idx2 := cachedIndices[index], cachedIndices[index+1] // GetBroadcastIndices(i, outShape, t1Strides, t2Strides)
+			idx1, idx2 := cachedIndices[index], cachedIndices[index+1]
 			index += 2
 			thisDelta, otherDelta := fastPathBackward(
 				this.Value[idx1], this.Grad[idx1],
@@ -165,8 +165,6 @@ func PerformBinaryOp(
 
 			this.Grad[idx1] += thisDelta
 			other.Grad[idx2] += otherDelta
-			// this.Grad[idx1] += out.Grad[i]
-			// other.Grad[idx2] += out.Grad[i]
 		}
 	}
 

@@ -638,7 +638,7 @@ func (t *Tensor) Add(other *Tensor) *Tensor {
 		"add",
 		t, other,
 
-		simd.MulFloat64s,
+		simd.AddFloat64s,
 		addBackward,
 
 		addForward,

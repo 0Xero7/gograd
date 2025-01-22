@@ -108,7 +108,7 @@ func TrainIris(iterations, batchSize int, learningRate float64) *nn.MLPTensor {
 
 	ng.TTensorPool.Mark()
 
-	optimizer := optimizers.NewAdamTensor(learningRate)
+	optimizer := optimizers.NewAdamTensor(learningRate, mlp.Parameters())
 
 	totalTime := 0.0
 
@@ -154,7 +154,7 @@ func TrainIris(iterations, batchSize int, learningRate float64) *nn.MLPTensor {
 		// Update
 		upStart := time.Now().UnixMilli()
 		params := ng.PathT
-		optimizer.Step(params)
+		optimizer.Step()
 		for j := range params {
 			for k := range params[j].Value {
 				params[j].Value[k] -= params[j].Grad[k] * learningRate

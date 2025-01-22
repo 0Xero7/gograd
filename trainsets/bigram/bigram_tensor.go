@@ -88,7 +88,7 @@ func TrainBigram(iterations, batchSize int, learningRate float64) *nn.MLPTensor 
 		// tensorlayers.Linear(128, len(vocab), &initializers.XavierInitializer{}),
 	})
 
-	optimizer := optimizers.NewAdamTensor(learningRate)
+	optimizer := optimizers.NewAdamTensor(learningRate, mlp.Parameters())
 
 	for epoch := range iterations {
 		batchIndices := make([]int, 0)
@@ -122,7 +122,7 @@ func TrainBigram(iterations, batchSize int, learningRate float64) *nn.MLPTensor 
 		logits := mlp.Call(xs)
 		loss := lossfunctions.TensorCrossEntropyProbDist(logits, ys)
 		loss.Backward()
-		optimizer.Step(ng.PathT)
+		optimizer.Step()
 
 		lossValue := loss.Value[0]
 		loss = nil

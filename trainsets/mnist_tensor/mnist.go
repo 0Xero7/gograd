@@ -91,11 +91,11 @@ func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLPTensor {
 	})
 	// ng.TTensorPool.Mark()
 
-	params := mlp.Parameters()
+	// params := mlp.Parameters()
 	fmt.Println("Created MLP")
 	printMemStats()
 
-	adam := optimizers.NewAdamTensor(learningRate)
+	adam := optimizers.NewAdamTensor(learningRate, mlp.Parameters())
 
 	totalTime := 0.0
 
@@ -154,7 +154,7 @@ func TrainMNIST(iterations, batchSize int, learningRate float64) *nn.MLPTensor {
 
 		// Update
 		upStart := time.Now().UnixMilli()
-		adam.Step(params)
+		adam.Step()
 		upEnd := time.Now().UnixMilli()
 		fmt.Printf("Update Time = %f\n", float64(upEnd-upStart)/1000)
 

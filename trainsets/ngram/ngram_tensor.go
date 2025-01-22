@@ -96,7 +96,7 @@ func TrainNgram(gram, iterations, batchSize int, learningRate float64) *nn.MLPTe
 
 	fmt.Println(mlp.ParameterCount())
 
-	optimizer := optimizers.NewAdamTensor(learningRate)
+	optimizer := optimizers.NewAdamTensor(learningRate, mlp.Parameters())
 
 	for epoch := range iterations {
 		batchIndices := make([]int, 0)
@@ -133,15 +133,15 @@ func TrainNgram(gram, iterations, batchSize int, learningRate float64) *nn.MLPTe
 		logits := mlp.Call(xs)
 		loss := lossfunctions.TensorCrossEntropyProbDist(logits, ys)
 		loss.Backward()
-		optimizer.Step(ng.PathT)
+		optimizer.Step()
 
 		lossValue := loss.Value[0]
 		loss = nil
 
 		// ng.TTensorPool.Reset()
 
+		runtime.GC()
 		if epoch%100 == 0 {
-			runtime.GC()
 			perf.PrintMemStats()
 			fmt.Printf("Epoch %d complete. Loss = %.4f\n", epoch+1, lossValue)
 		}
