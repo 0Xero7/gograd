@@ -7,13 +7,11 @@ import (
 	"math/rand"
 	"slices"
 	"strings"
-	"sync"
 	"sync/atomic"
 
 	"github.com/kelindar/simd"
 	"gonum.org/v1/gonum/blas"
 	"gonum.org/v1/gonum/blas/blas64"
-	"gonum.org/v1/gonum/mat"
 )
 
 type Tensor struct {
@@ -607,7 +605,7 @@ func (t *Tensor) ReshapeOut(dims ...int) *Tensor {
 // 	return res.RawMatrix().Data
 // }
 
-var blasImpl = blas64.Implementation()
+var BlasImpl = blas64.Implementation()
 var _pool [][]float64
 var _poolIndex = 0
 
@@ -630,15 +628,9 @@ func fastMatrixMultiply(a, b *Tensor) []float64 {
 		} else {
 			a.cachedOut = a.cachedOut[:rowsA*colsOut]
 		}
-		// a.cachedOut = make([]float64, rowsA*colsOut)
 	}
 
-	// outValues := make([]float64, rowsA*colsOut)
-	// Call Dgemm for matrix multiplication
-	// C = alpha * A * B + beta * C
-	// In our case, we want C = A * B, so alpha = 1, beta = 0, and C is initialized to zeros (outValues is already zero-initialized)
-
-	blasImpl.Dgemm(
+	BlasImpl.Dgemm(
 		blas.NoTrans, // Transpose A? (No)
 		blas.NoTrans, // Transpose B? (No)
 		rowsA,        // M: Number of rows of C and A
@@ -657,12 +649,6 @@ func fastMatrixMultiply(a, b *Tensor) []float64 {
 	return a.cachedOut
 }
 
-func fastMatrixMultiplyRaw(a, b mat.Matrix) []float64 {
-	var res mat.Dense
-	res.Mul(a, b)
-	return res.RawMatrix().Data
-}
-
 func (t *Tensor) MatMul(other *Tensor) *Tensor {
 	utils.AssertTrue(t.Dim() == 2 && other.Dim() == 2, "Can't perform matmul on operands that are not 2D.")
 	utils.AssertTrue(t.Shape[1] == other.Shape[0], fmt.Sprint("Can't perform matmul on matrices of shape ", t.Shape, " and ", other.Shape))
@@ -675,61 +661,40 @@ func (t *Tensor) MatMul(other *Tensor) *Tensor {
 	out.LocalBackward = func() {
 		rowsA := t.Shape[0]
 		colsA := t.Shape[1]
-		// rowsB := other.Shape[0]
 		colsB := other.Shape[1]
-		// rowsOut := out.Shape[0]
 		colsOut := out.Shape[1]
 
-		// Calculate gradient for t (self, 'a' in a*b)
-		// t.Grad += out.Grad * other.T
-		// impl := blas64.Implementation() // Use the global BLAS implementation
+		BlasImpl.Dgemm(
+			blas.NoTrans, // Transpose dc? No
+			blas.Trans,   // Transpose bt? Yes (other.Value is B, we need B^T)
+			rowsA,        // rows in a_grad (same as rows in dc, rows in A)
+			colsA,        // cols in a_grad (same as cols in bt.T(), cols in B)
+			colsOut,      // inner dimension (cols in dc, rows in bt)
+			1.0,          // alpha
+			out.Grad,     // matrix dc (out.Grad)
+			colsOut,      // lda = cols of dc
+			other.Value,  // matrix bt (other.Value)
+			colsB,        // ldb = cols of bt (original B, not transposed in terms of leading dimension)
+			1.0,          // beta (accumulate into t.Grad)
+			t.Grad,       // matrix to accumulate to (t.Grad)
+			colsA,        // ldc = cols of a_grad (cols of A)
+		)
 
-		wg := sync.WaitGroup{}
-		wg.Add(2)
-
-		go func() {
-			defer wg.Done()
-			// a_grad = dc * bt.T()  (dc is out.Grad, bt is other.Value)
-			blasImpl.Dgemm(
-				blas.NoTrans, // Transpose dc? No
-				blas.Trans,   // Transpose bt? Yes (other.Value is B, we need B^T)
-				rowsA,        // rows in a_grad (same as rows in dc, rows in A)
-				colsA,        // cols in a_grad (same as cols in bt.T(), cols in B)
-				colsOut,      // inner dimension (cols in dc, rows in bt)
-				1.0,          // alpha
-				out.Grad,     // matrix dc (out.Grad)
-				colsOut,      // lda = cols of dc
-				other.Value,  // matrix bt (other.Value)
-				colsB,        // ldb = cols of bt (original B, not transposed in terms of leading dimension)
-				1.0,          // beta (accumulate into t.Grad)
-				t.Grad,       // matrix to accumulate to (t.Grad)
-				colsA,        // ldc = cols of a_grad (cols of A)
-			)
-		}()
-
-		go func() {
-			defer wg.Done()
-			// Calculate gradient for other (other, 'b' in a*b)
-			// other.Grad += t.T * out.Grad
-			// b_grad = at.T() * dc (at is t.Value, dc is out.Grad)
-			blasImpl.Dgemm(
-				blas.Trans,   // Transpose at? Yes (t.Value is A, we need A^T)
-				blas.NoTrans, // Transpose dc? No
-				colsA,        // rows in b_grad (same as rows in at.T(), cols in A)
-				colsB,        // cols in b_grad (same as cols in dc, cols in C, cols in B)
-				rowsA,        // inner dimension (cols in at, rows in dc, rows in A)
-				1.0,          // alpha
-				t.Value,      // matrix at (t.Value)
-				colsA,        // lda = cols of at (original A, not transposed in terms of leading dimension)
-				out.Grad,     // matrix dc (out.Grad)
-				colsOut,      // ldb = cols of dc
-				1.0,          // beta (accumulate into other.Grad)
-				other.Grad,   // matrix to accumulate to (other.Grad)
-				colsB,        // ldc = cols of b_grad (cols of B)
-			)
-		}()
-
-		wg.Wait()
+		BlasImpl.Dgemm(
+			blas.Trans,   // Transpose at? Yes (t.Value is A, we need A^T)
+			blas.NoTrans, // Transpose dc? No
+			colsA,        // rows in b_grad (same as rows in at.T(), cols in A)
+			colsB,        // cols in b_grad (same as cols in dc, cols in C, cols in B)
+			rowsA,        // inner dimension (cols in at, rows in dc, rows in A)
+			1.0,          // alpha
+			t.Value,      // matrix at (t.Value)
+			colsA,        // lda = cols of at (original A, not transposed in terms of leading dimension)
+			out.Grad,     // matrix dc (out.Grad)
+			colsOut,      // ldb = cols of dc
+			1.0,          // beta (accumulate into other.Grad)
+			other.Grad,   // matrix to accumulate to (other.Grad)
+			colsB,        // ldc = cols of b_grad (cols of B)
+		)
 	}
 
 	return out

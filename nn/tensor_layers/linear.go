@@ -40,15 +40,15 @@ func (l *LinearLayer) Call(inputs *ng.Tensor) *ng.Tensor {
 	utils.AssertTrue(inputs.Size%l.DimIn == 0, fmt.Sprint("Input tensor of shape ", inputs.Shape, " is not compatible with layer of shape ", l.Weights.Shape))
 
 	inputFirstDim := inputs.Size / l.DimIn
-	return inputs.ReshapeOut(inputFirstDim, l.DimIn).MatMul(l.Weights).Add(l.Bias)
+	return inputs.ReshapeOut(inputFirstDim, l.DimIn).MatMul(l.Weights) //.Add(l.Bias)
 }
 
 func (l *LinearLayer) Parameters() []*ng.Tensor {
-	return []*ng.Tensor{l.Weights, l.Bias}
+	return []*ng.Tensor{l.Weights} //, l.Bias}
 }
 
 func (l *LinearLayer) ParameterCount() int {
-	return l.Weights.Len() + l.Bias.Len()
+	return l.Weights.Len() // + l.Bias.Len()
 }
 
 func (l *LinearLayer) FanOut() int {

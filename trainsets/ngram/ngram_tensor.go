@@ -141,8 +141,8 @@ func TrainNgram(gram, iterations, batchSize int, learningRate float64) *nn.MLPTe
 		// ng.TTensorPool.Reset()
 
 		ng.ResetPoolIndex()
-		runtime.GC()
-		if epoch%100 == 0 {
+		if epoch%1000 == 0 {
+			runtime.GC()
 			perf.PrintMemStats()
 			fmt.Printf("Epoch %d complete. Loss = %.4f\n", epoch+1, lossValue)
 		}

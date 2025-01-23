@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"gograd/ng"
 	"gograd/trainsets/ngram"
 	"log"
 	"math/rand"
@@ -9,6 +10,9 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"runtime/pprof"
+
+	"gonum.org/v1/gonum/blas/blas64"
+	"gonum.org/v1/netlib/blas/netlib"
 )
 
 var memprofile = flag.String("memprofile", "", "write memory profile to file")
@@ -16,11 +20,18 @@ var memprofile = flag.String("memprofile", "", "write memory profile to file")
 func main() {
 	flag.Parse()
 
+	blas64.Use(netlib.Implementation{})
+	ng.BlasImpl = blas64.Implementation()
+
 	go func() {
 		http.ListenAndServe("localhost:8080", nil)
 	}()
 
 	rand.Seed(1337)
+
+	// ft, _ := os.Create("trace.out")
+	// trace.Start(ft)
+	// defer trace.Stop()
 
 	f, _ := os.Create("cpu.prof")
 	defer f.Close() // error handling omitted for example
