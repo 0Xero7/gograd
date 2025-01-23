@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/kelindar/simd"
@@ -27,6 +28,9 @@ type Tensor struct {
 
 	Size                 int
 	RequiresOptimization bool
+
+	firstTime bool
+	cachedOut []float64
 }
 
 var TidGen atomic.Int64
@@ -40,9 +44,9 @@ var TTensorPool ValuePool[Tensor] = NewValuePool(func(index int) *Tensor {
 func NewTensorFlat(values []float64, shape []int) *Tensor {
 	tensor, exists := TTensorPool.Get()
 	if !exists {
-		tensor.Value = make([]float64, len(values))
+		// tensor.Value = make([]float64, len(values))
 		tensor.Grad = make([]float64, len(values))
-		tensor.Shape = make([]int, len(shape))
+		// tensor.Shape = make([]int, len(shape))
 		tensor.Strides = make([]int, len(shape))
 		tensor.Op = "None"
 		tensor.Children = *NewTensorChildren()
@@ -50,8 +54,10 @@ func NewTensorFlat(values []float64, shape []int) *Tensor {
 		tensor.Children.Clear()
 	}
 
-	copy(tensor.Value, values)
-	copy(tensor.Shape, shape)
+	tensor.Value = values
+	tensor.Shape = shape
+	// copy(tensor.Value, values)
+	// copy(tensor.Shape, shape)
 
 	tensor.recalcuateStrides()
 
@@ -62,9 +68,9 @@ func NewTensorFlatWith(values []float64, shape []int, op string, children ...*Te
 	tensor, exists := TTensorPool.Get()
 	// fmt.Println(tensor.Id)
 	if !exists {
-		tensor.Value = make([]float64, len(values))
+		// tensor.Value = make([]float64, len(values))
 		tensor.Grad = make([]float64, len(values))
-		tensor.Shape = make([]int, len(shape))
+		// tensor.Shape = make([]int, len(shape))
 		tensor.Strides = make([]int, len(shape))
 		tensor.Op = op
 		tensor.Children = *NewTensorChildrenWith(children)
@@ -72,8 +78,10 @@ func NewTensorFlatWith(values []float64, shape []int, op string, children ...*Te
 		tensor.Children.Clear()
 	}
 
-	copy(tensor.Value, values)
-	copy(tensor.Shape, shape)
+	tensor.Value = values
+	tensor.Shape = shape
+	// copy(tensor.Value, values)
+	// copy(tensor.Shape, shape)
 
 	tensor.recalcuateStrides()
 
@@ -388,10 +396,14 @@ func (t *Tensor) Log() *Tensor {
 }
 
 func (t *Tensor) Tanh() *Tensor {
-	vals := make([]float64, t.Len())
+	if !t.firstTime {
+		t.cachedOut = make([]float64, t.Len())
+		t.firstTime = true
+	}
+
 	for i := range t.Len() {
 		x := t.Value[i]
-		vals[i] = 1 - (2 * (1 / (1 + math.Exp(x*2))))
+		t.cachedOut[i] = 1 - (2 * (1 / (1 + math.Exp(x*2))))
 		// if x > 5 {
 		// 	vals[i] = 1.0
 		// } else if x < -5 {
@@ -401,7 +413,7 @@ func (t *Tensor) Tanh() *Tensor {
 		// }
 	}
 
-	out := NewTensorFlatWith(vals, t.Shape, "tanh", t)
+	out := NewTensorFlatWith(t.cachedOut, t.Shape, "tanh", t)
 	backward := func() {
 		for i := range t.Len() {
 			y := out.Value[i]
@@ -595,24 +607,38 @@ func (t *Tensor) ReshapeOut(dims ...int) *Tensor {
 // 	return res.RawMatrix().Data
 // }
 
+var blasImpl = blas64.Implementation()
+var _pool [][]float64
+var _poolIndex = 0
+
+func ResetPoolIndex() {
+	_poolIndex = 0
+}
+
 func fastMatrixMultiply(a, b *Tensor) []float64 {
-	var blasImpl = blas64.Implementation()
 	rowsA := a.Shape[0]
 	colsA := a.Shape[1]
-	// rowsB := b.Shape[0]
 	colsB := b.Shape[1]
 	colsOut := colsB // Output columns
 
-	outValues := make([]float64, rowsA*colsOut)
+	if len(a.cachedOut) != rowsA*colsOut {
+		if len(a.cachedOut) < rowsA*colsOut {
+			a.cachedOut = slices.Grow(a.cachedOut, rowsA*colsOut)
+			for i := len(a.cachedOut); i < rowsA*colsOut; i++ {
+				a.cachedOut = append(a.cachedOut, 0.0)
+			}
+		} else {
+			a.cachedOut = a.cachedOut[:rowsA*colsOut]
+		}
+		// a.cachedOut = make([]float64, rowsA*colsOut)
+	}
 
-	// Get BLAS implementation
-	impl := blasImpl
-
+	// outValues := make([]float64, rowsA*colsOut)
 	// Call Dgemm for matrix multiplication
 	// C = alpha * A * B + beta * C
 	// In our case, we want C = A * B, so alpha = 1, beta = 0, and C is initialized to zeros (outValues is already zero-initialized)
 
-	impl.Dgemm(
+	blasImpl.Dgemm(
 		blas.NoTrans, // Transpose A? (No)
 		blas.NoTrans, // Transpose B? (No)
 		rowsA,        // M: Number of rows of C and A
@@ -624,11 +650,11 @@ func fastMatrixMultiply(a, b *Tensor) []float64 {
 		b.Value,      // B: Matrix B (data slice)
 		colsB,        // ldb: Leading dimension of B (number of columns of B, stride between rows)
 		0.0,          // beta: scalar multiplier for C (we want to overwrite C, so 0)
-		outValues,    // C: Matrix C (data slice) - output
+		a.cachedOut,  // C: Matrix C (data slice) - output
 		colsOut,      // ldc: Leading dimension of C (number of columns of C, stride between rows)
 	)
 
-	return outValues
+	return a.cachedOut
 }
 
 func fastMatrixMultiplyRaw(a, b mat.Matrix) []float64 {
@@ -656,43 +682,54 @@ func (t *Tensor) MatMul(other *Tensor) *Tensor {
 
 		// Calculate gradient for t (self, 'a' in a*b)
 		// t.Grad += out.Grad * other.T
-		impl := blas64.Implementation() // Use the global BLAS implementation
+		// impl := blas64.Implementation() // Use the global BLAS implementation
 
-		// a_grad = dc * bt.T()  (dc is out.Grad, bt is other.Value)
-		impl.Dgemm(
-			blas.NoTrans, // Transpose dc? No
-			blas.Trans,   // Transpose bt? Yes (other.Value is B, we need B^T)
-			rowsA,        // rows in a_grad (same as rows in dc, rows in A)
-			colsA,        // cols in a_grad (same as cols in bt.T(), cols in B)
-			colsOut,      // inner dimension (cols in dc, rows in bt)
-			1.0,          // alpha
-			out.Grad,     // matrix dc (out.Grad)
-			colsOut,      // lda = cols of dc
-			other.Value,  // matrix bt (other.Value)
-			colsB,        // ldb = cols of bt (original B, not transposed in terms of leading dimension)
-			1.0,          // beta (accumulate into t.Grad)
-			t.Grad,       // matrix to accumulate to (t.Grad)
-			colsA,        // ldc = cols of a_grad (cols of A)
-		)
+		wg := sync.WaitGroup{}
+		wg.Add(2)
 
-		// Calculate gradient for other (other, 'b' in a*b)
-		// other.Grad += t.T * out.Grad
-		// b_grad = at.T() * dc (at is t.Value, dc is out.Grad)
-		impl.Dgemm(
-			blas.Trans,   // Transpose at? Yes (t.Value is A, we need A^T)
-			blas.NoTrans, // Transpose dc? No
-			colsA,        // rows in b_grad (same as rows in at.T(), cols in A)
-			colsB,        // cols in b_grad (same as cols in dc, cols in C, cols in B)
-			rowsA,        // inner dimension (cols in at, rows in dc, rows in A)
-			1.0,          // alpha
-			t.Value,      // matrix at (t.Value)
-			colsA,        // lda = cols of at (original A, not transposed in terms of leading dimension)
-			out.Grad,     // matrix dc (out.Grad)
-			colsOut,      // ldb = cols of dc
-			1.0,          // beta (accumulate into other.Grad)
-			other.Grad,   // matrix to accumulate to (other.Grad)
-			colsB,        // ldc = cols of b_grad (cols of B)
-		)
+		go func() {
+			defer wg.Done()
+			// a_grad = dc * bt.T()  (dc is out.Grad, bt is other.Value)
+			blasImpl.Dgemm(
+				blas.NoTrans, // Transpose dc? No
+				blas.Trans,   // Transpose bt? Yes (other.Value is B, we need B^T)
+				rowsA,        // rows in a_grad (same as rows in dc, rows in A)
+				colsA,        // cols in a_grad (same as cols in bt.T(), cols in B)
+				colsOut,      // inner dimension (cols in dc, rows in bt)
+				1.0,          // alpha
+				out.Grad,     // matrix dc (out.Grad)
+				colsOut,      // lda = cols of dc
+				other.Value,  // matrix bt (other.Value)
+				colsB,        // ldb = cols of bt (original B, not transposed in terms of leading dimension)
+				1.0,          // beta (accumulate into t.Grad)
+				t.Grad,       // matrix to accumulate to (t.Grad)
+				colsA,        // ldc = cols of a_grad (cols of A)
+			)
+		}()
+
+		go func() {
+			defer wg.Done()
+			// Calculate gradient for other (other, 'b' in a*b)
+			// other.Grad += t.T * out.Grad
+			// b_grad = at.T() * dc (at is t.Value, dc is out.Grad)
+			blasImpl.Dgemm(
+				blas.Trans,   // Transpose at? Yes (t.Value is A, we need A^T)
+				blas.NoTrans, // Transpose dc? No
+				colsA,        // rows in b_grad (same as rows in at.T(), cols in A)
+				colsB,        // cols in b_grad (same as cols in dc, cols in C, cols in B)
+				rowsA,        // inner dimension (cols in at, rows in dc, rows in A)
+				1.0,          // alpha
+				t.Value,      // matrix at (t.Value)
+				colsA,        // lda = cols of at (original A, not transposed in terms of leading dimension)
+				out.Grad,     // matrix dc (out.Grad)
+				colsOut,      // ldb = cols of dc
+				1.0,          // beta (accumulate into other.Grad)
+				other.Grad,   // matrix to accumulate to (other.Grad)
+				colsB,        // ldc = cols of b_grad (cols of B)
+			)
+		}()
+
+		wg.Wait()
 	}
 
 	return out

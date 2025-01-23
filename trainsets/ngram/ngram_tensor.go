@@ -140,6 +140,7 @@ func TrainNgram(gram, iterations, batchSize int, learningRate float64) *nn.MLPTe
 
 		// ng.TTensorPool.Reset()
 
+		ng.ResetPoolIndex()
 		runtime.GC()
 		if epoch%100 == 0 {
 			perf.PrintMemStats()
@@ -190,6 +191,7 @@ func Predict(mlp *nn.MLPTensor, gram int) {
 			return
 		}
 
+		ng.ResetPoolIndex()
 		input = string(input[1:]) + char
 		fmt.Print(char)
 	}
