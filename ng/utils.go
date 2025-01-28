@@ -3,6 +3,8 @@ package ng
 import (
 	"fmt"
 	"slices"
+
+	"github.com/kelindar/simd"
 )
 
 func CanBroadcast(t1, t2 *Tensor) bool {
@@ -91,8 +93,138 @@ func GetBroadcastIndices(flatIndex int, outShape []int, t1Strides []int, t2Strid
 	return idx1, idx2
 }
 
-// Generic Binary Op Kernel
 func PerformBinaryOp(
+	op string,
+	this, other *Tensor,
+
+	fastPathForward func(dst, this, other []float64) []float64,
+	fastPathBackward func(thisValue, thisGrad, otherValue, otherGrad, outValue, outGrad float64) (float64, float64),
+
+	forward func(thisValue, otherValue float64) float64,
+	backward func(thisValue, thisGrad, otherValue, otherGrad, outValue, outGrad float64) (float64, float64),
+) *Tensor {
+	// Fast path for same shapes
+	if slices.Equal(this.Shape, other.Shape) {
+		n := this.Len()
+		vals := make([]float64, n)
+		fastPathForward(vals, this.Value, other.Value)
+
+		out := NewTensorFlatWith(vals, this.Shape, op, this, other)
+		out.LocalBackward = func() {
+			for i := 0; i < n; i++ {
+				thisDelta, otherDelta := fastPathBackward(
+					this.Value[i], this.Grad[i],
+					other.Value[i], other.Grad[i],
+					out.Value[i], out.Grad[i],
+				)
+				this.Grad[i] += thisDelta
+				other.Grad[i] += otherDelta
+			}
+		}
+		return out
+	}
+
+	// Broadcasted operation
+	outShape, t1Strides, t2Strides := GetBroadcastDims(this, other)
+	totalSize := product(outShape)
+	innermostDim := len(outShape) - 1
+	innerSize := outShape[innermostDim]
+	t1StrideInner := t1Strides[innermostDim]
+	t2StrideInner := t2Strides[innermostDim]
+
+	vals := make([]float64, totalSize)
+	cachedIndices := make([]int, 2*totalSize)
+
+	// Check if innermost dimension is contiguous for both tensors
+	if t1StrideInner == 1 && t2StrideInner == 1 && innerSize > 1 {
+		outerSize := totalSize / innerSize
+		for outer := 0; outer < outerSize; outer++ {
+			flatIndex := outer * innerSize
+			idx1, idx2 := GetBroadcastIndices(flatIndex, outShape, t1Strides, t2Strides)
+			aChunk := this.Value[idx1 : idx1+innerSize]
+			bChunk := other.Value[idx2 : idx2+innerSize]
+			dstChunk := vals[flatIndex : flatIndex+innerSize]
+			fastPathForward(dstChunk, aChunk, bChunk)
+
+			// Cache indices for backward
+			for i := 0; i < innerSize; i++ {
+				cachedIndices[2*(flatIndex+i)] = idx1 + i
+				cachedIndices[2*(flatIndex+i)+1] = idx2 + i
+			}
+		}
+	} else {
+		// Fallback to element-wise processing
+		for i := 0; i < totalSize; i++ {
+			idx1, idx2 := GetBroadcastIndices(i, outShape, t1Strides, t2Strides)
+			cachedIndices[2*i], cachedIndices[2*i+1] = idx1, idx2
+			vals[i] = forward(this.Value[idx1], other.Value[idx2])
+		}
+	}
+
+	out := NewTensorFlatWith(vals, outShape, op, this, other)
+
+	// Backward pass optimization for contiguous inner dimension
+	out.LocalBackward = func() {
+		if t1StrideInner == 1 && t2StrideInner == 1 && innerSize > 1 {
+			outerSize := totalSize / innerSize
+			for outer := 0; outer < outerSize; outer++ {
+				flatIndex := outer * innerSize
+				idx1Start := cachedIndices[2*flatIndex]
+				idx2Start := cachedIndices[2*flatIndex+1]
+
+				gradChunk := out.Grad[flatIndex : flatIndex+innerSize]
+				aGradChunk := this.Grad[idx1Start : idx1Start+innerSize]
+				bGradChunk := other.Grad[idx2Start : idx2Start+innerSize]
+
+				// Vectorized backward for supported operations (e.g., addition)
+				if op == "add" {
+					simd.AddFloat64s(aGradChunk, aGradChunk, gradChunk)
+					simd.AddFloat64s(bGradChunk, bGradChunk, gradChunk)
+				} else {
+					// Element-wise fallback
+					for i := 0; i < innerSize; i++ {
+						idx := flatIndex + i
+						aIdx := cachedIndices[2*idx]
+						bIdx := cachedIndices[2*idx+1]
+						aDelta, bDelta := backward(
+							this.Value[aIdx], this.Grad[aIdx],
+							other.Value[bIdx], other.Grad[bIdx],
+							vals[idx], gradChunk[i],
+						)
+						this.Grad[aIdx] += aDelta
+						other.Grad[bIdx] += bDelta
+					}
+				}
+			}
+		} else {
+			// Element-wise backward
+			for i := 0; i < totalSize; i++ {
+				aIdx := cachedIndices[2*i]
+				bIdx := cachedIndices[2*i+1]
+				aDelta, bDelta := backward(
+					this.Value[aIdx], this.Grad[aIdx],
+					other.Value[bIdx], other.Grad[bIdx],
+					vals[i], out.Grad[i],
+				)
+				this.Grad[aIdx] += aDelta
+				other.Grad[bIdx] += bDelta
+			}
+		}
+	}
+
+	return out
+}
+
+// func product(shape []int) int {
+// 	p := 1
+// 	for _, dim := range shape {
+// 		p *= dim
+// 	}
+// 	return p
+// }
+
+// Generic Binary Op Kernel
+func PerformBinaryOp2(
 	op string,
 	this, other *Tensor,
 

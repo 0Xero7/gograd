@@ -393,7 +393,71 @@ func (t *Tensor) Log() *Tensor {
 	return out
 }
 
-func (t *Tensor) Tanh() *Tensor {
+func (t *Tensor) Tanh3() *Tensor {
+	// Reuse cached memory for outputs
+	if cap(t.cachedOut) < t.Len() {
+		t.cachedOut = make([]float64, t.Len())
+	} else {
+		t.cachedOut = t.cachedOut[:t.Len()]
+	}
+
+	// Vectorized forward pass using SIMD-friendly operations
+	values := t.Value
+	output := t.cachedOut
+	for i := range values {
+		x := values[i]
+		// Use optimized math library implementation
+		output[i] = math.Tanh(x)
+	}
+
+	out := NewTensorFlatWith(output, t.Shape, "tanh", t)
+
+	// Optimized backward pass using precomputed values
+	out.LocalBackward = func() {
+		y := out.Value   // tanh(x)
+		grad := out.Grad // ∂L/∂tanh(x)
+		dst := t.Grad    // ∂L/∂x
+
+		// Vectorized: dst += (1 - y²) * grad
+		simdRange(len(y), func(i, n int) {
+			// Compute (1 - y²) using SIMD multiplication
+			ySlice := y[i : i+n]
+			gradSlice := grad[i : i+n]
+			dstSlice := dst[i : i+n]
+			// subSlice := make([]float64, n)
+			// for j := range n {
+			// 	subSlice[j] = 1.0
+			// }
+
+			// temp = y * y
+			temp := make([]float64, n)
+			simd.MulFloat64s(temp, ySlice, ySlice)
+
+			// temp = 1 - temp
+			// simd.SubFloat64s(temp, simd.Broadcast(1.0, n), temp)
+			// simd.SubFloat64s(temp, subSlice, temp)
+
+			// temp *= grad
+			simd.MulFloat64s(temp, temp, gradSlice)
+
+			// Accumulate gradients
+			simd.AddFloat64s(dstSlice, dstSlice, temp)
+		})
+	}
+
+	return out
+}
+
+// Helper for SIMD-friendly chunk processing
+func simdRange(n int, fn func(start, chunk int)) {
+	const simdSize = 8 // AVX2 (256-bit) can process 4 doubles
+	for i := 0; i < n; i += simdSize {
+		chunk := min(simdSize, n-i)
+		fn(i, chunk)
+	}
+}
+
+func (t *Tensor) Tanh2() *Tensor {
 	if !t.firstTime {
 		t.cachedOut = make([]float64, t.Len())
 		t.firstTime = true
@@ -409,6 +473,40 @@ func (t *Tensor) Tanh() *Tensor {
 		// } else {
 		// 	vals[i] = math.Tanh(x)
 		// }
+	}
+
+	out := NewTensorFlatWith(t.cachedOut, t.Shape, "tanh", t)
+	backward := func() {
+		for i := range t.Len() {
+			y := out.Value[i]
+			y = y * y
+			t.Grad[i] += (1.0 - y) * out.Grad[i]
+		}
+	}
+	out.LocalBackward = backward
+
+	return out
+}
+
+func (t *Tensor) Tanh() *Tensor {
+	if !t.firstTime {
+		t.cachedOut = make([]float64, t.Len())
+		t.firstTime = true
+	}
+
+	for i := range t.Len() {
+		x := t.Value[i]
+		// t.cachedOut[i] = 1 - (2 * (1 / (1 + math.Exp(x*2))))
+		if x > 5 {
+			t.cachedOut[i] = 1.0
+		} else if x < -5 {
+			t.cachedOut[i] = -1.0
+		} else {
+			x2 := x * x
+			a := x * (135135.0 + x2*(17325.0+x2*(378.0+x2)))
+			b := 135135.0 + x2*(62370.0+x2*(3150.0+x2*28.0))
+			t.cachedOut[i] = a / b
+		}
 	}
 
 	out := NewTensorFlatWith(t.cachedOut, t.Shape, "tanh", t)
@@ -702,7 +800,7 @@ func (t *Tensor) MatMul(other *Tensor) *Tensor {
 
 // -----------------------------------------------------------------------------------------------------------------------
 
-func (t *Tensor) Add(other *Tensor) *Tensor {
+func (t *Tensor) Add2(other *Tensor) *Tensor {
 	addBackward := func(thisValue, thisGrad, otherValue, otherGrad, outValue, outGrad float64) (float64, float64) {
 		return outGrad, outGrad
 	}
@@ -841,4 +939,158 @@ func (t *Tensor) Backward(init ...Tensor) {
 	for i := range pathLen {
 		PathT[i].PerformBackward()
 	}
+}
+
+func BroadcastShapes(aShape, bShape []int) ([]int, error) {
+	maxLen := len(aShape)
+	if len(bShape) > maxLen {
+		maxLen = len(bShape)
+	}
+
+	aPad := make([]int, maxLen)
+	bPad := make([]int, maxLen)
+
+	for i := 0; i < maxLen; i++ {
+		aIdx := len(aShape) - maxLen + i
+		if aIdx >= 0 {
+			aPad[i] = aShape[aIdx]
+		} else {
+			aPad[i] = 1
+		}
+
+		bIdx := len(bShape) - maxLen + i
+		if bIdx >= 0 {
+			bPad[i] = bShape[bIdx]
+		} else {
+			bPad[i] = 1
+		}
+	}
+
+	result := make([]int, maxLen)
+	for i := 0; i < maxLen; i++ {
+		aDim, bDim := aPad[i], bPad[i]
+		if aDim != bDim && aDim != 1 && bDim != 1 {
+			return nil, fmt.Errorf("shapes %v and %v are not broadcastable", aShape, bShape)
+		}
+		result[i] = max(aDim, bDim)
+	}
+	return result, nil
+}
+
+// func max(a, b int) int {
+// 	if a > b {
+// 		return a
+// 	}
+// 	return b
+// }
+
+func (t *Tensor) BroadcastTo(targetShape []int) (*Tensor, error) {
+	bcShape, err := BroadcastShapes(t.Shape, targetShape)
+	if err != nil {
+		return nil, err
+	}
+	if !slices.Equal(bcShape, targetShape) {
+		return nil, fmt.Errorf("cannot broadcast shape %v to %v", t.Shape, targetShape)
+	}
+
+	originalDims := len(t.Shape)
+	alignedShape := make([]int, len(targetShape))
+	for i := range alignedShape {
+		if i < len(targetShape)-originalDims {
+			alignedShape[i] = 1
+		} else {
+			alignedShape[i] = t.Shape[i-(len(targetShape)-originalDims)]
+		}
+	}
+
+	newSize := product(targetShape)
+	newData := make([]float64, newSize)
+	originalStrides := makeStrides(alignedShape)
+
+	indices := make([]int, len(targetShape))
+	for i := 0; i < newSize; i++ {
+		pos := i
+		for j := len(targetShape) - 1; j >= 0; j-- {
+			indices[j] = pos % targetShape[j]
+			pos /= targetShape[j]
+		}
+
+		originalIndex := 0
+		for j, idx := range indices {
+			dim := alignedShape[j]
+			if dim == 1 {
+				idx = 0
+			}
+			originalIndex += idx * originalStrides[j]
+		}
+		newData[i] = t.Value[originalIndex]
+	}
+
+	out := NewTensorFlat(newData, targetShape)
+	out.Op = "broadcast"
+	out.Children.Append(t)
+
+	out.LocalBackward = func() {
+		grad := out.Grad
+		for i := 0; i < len(grad); i++ {
+			pos := i
+			for j := len(targetShape) - 1; j >= 0; j-- {
+				indices[j] = pos % targetShape[j]
+				pos /= targetShape[j]
+			}
+
+			originalIndex := 0
+			for j, idx := range indices {
+				dim := alignedShape[j]
+				if dim == 1 {
+					idx = 0
+				}
+				originalIndex += idx * originalStrides[j]
+			}
+			t.Grad[originalIndex] += grad[i]
+		}
+	}
+
+	return out, nil
+}
+
+func product(shape []int) int {
+	p := 1
+	for _, dim := range shape {
+		p *= dim
+	}
+	return p
+}
+
+func makeStrides(shape []int) []int {
+	strides := make([]int, len(shape))
+	stride := 1
+	for i := len(shape) - 1; i >= 0; i-- {
+		strides[i] = stride
+		stride *= shape[i]
+	}
+	return strides
+}
+
+func (t *Tensor) Add(other *Tensor) *Tensor {
+	addForward := func(dst, a, b []float64) []float64 {
+		return simd.AddFloat64s(dst, a, b)
+	}
+	addBackward := func(_, aGrad, _, bGrad, _, outGrad float64) (float64, float64) {
+		return aGrad + outGrad, bGrad + outGrad
+	}
+	return PerformBinaryOp("add", t, other, addForward, addBackward,
+		func(a, b float64) float64 { return a + b },
+		func(_, _, _, _, _, outGrad float64) (float64, float64) { return outGrad, outGrad },
+	)
+}
+
+func (t *Tensor) addUnbroadcasted(other *Tensor) *Tensor {
+	addBackward := func(tVal, tGrad, oVal, oGrad, outVal, outGrad float64) (float64, float64) {
+		return outGrad, outGrad
+	}
+	addForward := func(tVal, oVal float64) float64 {
+		return tVal + oVal
+	}
+	return PerformBinaryOp("add", t, other, simd.AddFloat64s, addBackward, addForward, addBackward)
 }
