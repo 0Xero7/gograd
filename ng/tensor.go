@@ -490,13 +490,13 @@ func (t *Tensor) Tanh2() *Tensor {
 
 func (t *Tensor) Tanh() *Tensor {
 	if !t.firstTime {
-		t.cachedOut = make([]float64, t.Len())
 		t.firstTime = true
+
+		t.cachedOut = make([]float64, t.Len())
 	}
 
 	for i := range t.Len() {
 		x := t.Value[i]
-		// t.cachedOut[i] = 1 - (2 * (1 / (1 + math.Exp(x*2))))
 		if x > 5 {
 			t.cachedOut[i] = 1.0
 		} else if x < -5 {
@@ -512,9 +512,8 @@ func (t *Tensor) Tanh() *Tensor {
 	out := NewTensorFlatWith(t.cachedOut, t.Shape, "tanh", t)
 	backward := func() {
 		for i := range t.Len() {
-			y := out.Value[i]
-			y = y * y
-			t.Grad[i] += (1.0 - y) * out.Grad[i]
+			y := t.cachedOut[i]
+			t.Grad[i] += (1.0 - y*y) * out.Grad[i]
 		}
 	}
 	out.LocalBackward = backward
